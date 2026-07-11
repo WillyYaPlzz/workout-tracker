@@ -15,7 +15,7 @@ Bilingual (EN/AR) workout tracking PWA with progress charts and YouTube video li
    git add .
    git commit -m "initial commit"
    git branch -M main
-   git remote add origin https://github.com/WillyYaPlzz/workout-tracker.git
+   git remote add origin https://github.com/YOUR_USERNAME/workout-tracker.git
    git push -u origin main
    ```
 4. In GitHub → repo → **Settings → Pages** → Source: select **GitHub Actions**
