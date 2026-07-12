@@ -4,6 +4,14 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceL
 const COMPLETION_MESSAGES = [
   "شطورررة لولو🥳",
   "اويلي على معضلتي😍❤️",
+  "أحسن واقوى واحلى بنوته في الدنيا 💖",
+  "فخورة فيك مرة ❤️",
+  "ما شاء الله عليك لولو 🤍",
+  "واو يا قوية 🔥",
+  "عسل ومعضلة بعد 😌❤️",
+  "يا سلام على الالتزام 😍",
+  "يا سلام على الالتزام 😍",
+  "شكلك بتكسرين أرقامك قريب 👀💪",
 ];
 
 const THEMES = {
@@ -133,6 +141,7 @@ export default function WorkoutTracker(){
   const[openSec,setOpenSec]=useState({warmup:false,workout:true,cooldown:false});
   const[expandedEx,setExpandedEx]=useState({});
   const[popup,setPopup]=useState(null);
+  const [messageIndex, setMessageIndex] = useState(0);
   const[loading,setLoading]=useState(true);
 
   useEffect(()=>{
@@ -176,7 +185,8 @@ export default function WorkoutTracker(){
     for(const ex of WORKOUTS[activeTab].exercises){const d=exerciseData[activeTab][ex.id];if(d.completed){const mw=Math.max(...d.setData.map(s=>parseFloat(s.weight)||0));snap[ex.id]={equipment:d.equipment,sets:d.sets,setData:JSON.parse(JSON.stringify(d.setData)),maxWeight:mw,notes:d.notes}}}
     const nh=JSON.parse(JSON.stringify(history));if(!nh[activeTab])nh[activeTab]={};nh[activeTab][today]=snap;
     setHistory(nh);save(exerciseData,nh);
-    setPopup(COMPLETION_MESSAGES[Math.floor(Math.random()*COMPLETION_MESSAGES.length)]);
+    setPopup(COMPLETION_MESSAGES[messageIndex]);
+    setMessageIndex((prev) => (prev + 1) % COMPLETION_MESSAGES.length);
   }
 
   function resetDay(){
