@@ -20,8 +20,8 @@ const LANG = {
 };
 
 const WARMUP = {
-  upper: { link: "https://youtube.com/shorts/uU47qraVnUM", items: { en: ["5 min light cardio","Arm circles (30 sec each direction)","Band pull-aparts (15 reps)","Shoulder dislocations (10 reps)","Light set of first exercise"], ar: ["5 دقائق كارديو خفيف","دوران الذراعين (30 ثانية كل اتجاه)","سحب الباند (15 تكرار)","تمارين مرونة الكتف (10 تكرار)","جولة خفيفة من التمرين الأول"] } },
-  legs: { link: "https://youtube.com/shorts/49yH08totkg", items: { en: ["5 min light cardio","Bodyweight squats (15 reps)","Leg swings (10 each leg)","Hip circles (10 each direction)","Light set of first exercise"], ar: ["5 دقائق كارديو خفيف","سكوات بوزن الجسم (15 تكرار)","تأرجح الأرجل (10 كل رجل)","دوران الورك (10 كل اتجاه)","جولة خفيفة من التمرين الأول"] } },
+  upper: { link: "https://youtube.com/shorts/uU47qraVnUM", items: { en: ["3-5 min light cardio","Arm circles (30 sec each direction)","Band pull-aparts (15 repsx2)","Over head Band pull-aparts (15 repsx2)","Externl Rotation (10 repsx3)","Internal Rotation (10 repsx3)","Light set of first exercise"], ar: ["5 دقائق كارديو خفيف","دوران الذراعين (30 ثانية كل اتجاه)","سحب الباند (15 تكرار)","تمارين مرونة الكتف (10 تكرار)","جولة خفيفة من التمرين الأول"] } },
+  legs: { link: "https://youtube.com/shorts/49yH08totkg", items: { en: ["3-5 min light cardio","Bodyweight squats (15 reps)","Leg swings (10 each leg)","Hip circles (10 each direction)","Light set of first exercise"], ar: ["5 دقائق كارديو خفيف","سكوات بوزن الجسم (15 تكرار)","تأرجح الأرجل (10 كل رجل)","دوران الورك (10 كل اتجاه)","جولة خفيفة من التمرين الأول"] } },
 };
 const COOLDOWN = { items: { en: ["10-15 min low intensity cardio","Static stretches (30 sec each muscle)","Deep breathing (2 min)"], ar: ["10-15 دقيقة كارديو خفيف","تمارين إطالة ثابتة (30 ثانية لكل عضلة)","تنفس عميق (دقيقتين)"] } };
 
