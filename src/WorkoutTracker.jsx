@@ -146,8 +146,8 @@ export default function WorkoutTracker(){
 
   useEffect(()=>{
     try{
-      const lR=localStorage.getItem("wt-lang");if(lR)setLang(lR);
-      const tR=localStorage.getItem("wt-theme");if(tR)setThemeId(tR);
+      const lR=localStorage.getItem("wt-lang");if(lR==="en"||lR==="ar")setLang(lR);
+      const tR=localStorage.getItem("wt-theme");if(tR&&THEMES[tR])setThemeId(tR);
       const exR=localStorage.getItem("wt-ex");
       const ex=exR?JSON.parse(exR):initEx();
       const histR=localStorage.getItem("wt-hist");
