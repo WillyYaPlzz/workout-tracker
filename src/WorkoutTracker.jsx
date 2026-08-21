@@ -4,6 +4,9 @@ import { LANG, t, fill } from "./data/strings";
 import { logicalDate } from "./lib/dates";
 import { exportPayload } from "./lib/storage";
 import { currentWeek, weeksDone } from "./lib/stats";
+import { pickGreeting } from "./lib/greeting";
+import { GREETINGS } from "./data/messages";
+import { Popup } from "./components/ui";
 import { useAppState } from "./hooks/useAppState";
 import DayView from "./components/DayView";
 import Dashboard from "./components/Dashboard";
@@ -30,6 +33,7 @@ export default function WorkoutTracker() {
   const [todayStr, setTodayStr] = useState(() => logicalDate(new Date(), 4));
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [nudgeWeek, setNudgeWeek] = useState(null);
+  const [greeting, setGreeting] = useState(null);
 
   useEffect(() => {
     const tick = () => setTodayStr(logicalDate(new Date(), data.settings.rolloverHour));
@@ -85,6 +89,24 @@ export default function WorkoutTracker() {
     }
   }, [done, needsSetup, data.meta.lastBackupNudgeWeek, dispatch]);
 
+  // Greet once a day, the first time the app is opened. The completion popup
+  // lives in DayView and only fires on finishing a workout, so the two never
+  // land together.
+  useEffect(() => {
+    if (needsSetup) return;
+    const g = pickGreeting({
+      now: new Date(),
+      rolloverHour: data.settings.rolloverHour,
+      lastGreetedDate: data.meta.lastGreetedDate ?? null,
+      index: data.meta.greetIndex ?? 0,
+      greetings: GREETINGS,
+    });
+    if (!g.show) return;
+    setGreeting(g.message);
+    dispatch({ type: "SET_META", key: "lastGreetedDate", value: g.date });
+    dispatch({ type: "SET_META", key: "greetIndex", value: (data.meta.greetIndex ?? 0) + 1 });
+  }, [needsSetup]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   function openDay(date) {
     setSelectedDate(date);
     setView("workout");
@@ -94,6 +116,8 @@ export default function WorkoutTracker() {
 
   return (
     <div dir={LANG[lang].dir} style={{ background: th.bg, color: th.text, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: needsSetup ? 40 : `calc(${TAB_H}px + env(safe-area-inset-bottom) + 12px)` }}>
+      {greeting && <Popup message={greeting} onClose={() => setGreeting(null)} lang={lang} dir={/^[A-Za-z]/.test(greeting) ? "ltr" : "rtl"}/>}
+
       {/* a failed write takes over the top of the screen until it is resolved */}
       {storage.saveError && (
         <div style={{ position: "sticky", top: 0, zIndex: 700, background: "#ff5252", color: "#fff", padding: "10px 16px" }}>
