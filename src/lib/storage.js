@@ -103,3 +103,42 @@ export function storageBytes(storage) {
 export function exportPayload(state) {
   return JSON.stringify({ app: "workout-tracker", exportedAt: new Date().toISOString(), state }, null, 2);
 }
+
+// E — restoring a backup. The caller chooses "replace" (the file wins outright)
+// or "merge" (union of days; where both sides have the same day, the one worked
+// on more recently wins). Returns {ok, state, stats} or {ok:false, error}.
+export function importPayload(json, current, mode = "merge") {
+  let parsed;
+  try { parsed = typeof json === "string" ? JSON.parse(json) : json; }
+  catch { return { ok: false, error: "unreadable" }; }
+
+  const incoming = parsed?.state && parsed?.app === "workout-tracker" ? parsed.state : parsed;
+  if (!incoming || typeof incoming !== "object" || !incoming.schemaVersion || typeof incoming.days !== "object") {
+    return { ok: false, error: "not-a-backup" };
+  }
+
+  if (mode === "replace") {
+    const state = { ...defaultState(), ...incoming, settings: { ...defaultSettings(), ...incoming.settings } };
+    return { ok: true, state, stats: { days: Object.keys(state.days || {}).length, replaced: true } };
+  }
+
+  const touchedAt = d => d?.completedAt ?? d?.startedAt ?? 0;
+  const days = { ...current.days };
+  let added = 0, updated = 0, kept = 0;
+  for (const [date, day] of Object.entries(incoming.days || {})) {
+    const mine = days[date];
+    if (!mine) { days[date] = day; added++; }
+    else if (touchedAt(day) > touchedAt(mine)) { days[date] = day; updated++; }
+    else kept++;
+  }
+  const state = {
+    ...current,
+    program: current.program || incoming.program || null,
+    settings: { ...current.settings, ...incoming.settings },
+    weeks: { ...incoming.weeks, ...current.weeks },
+    exercises: { ...incoming.exercises, ...current.exercises },
+    days,
+    meta: { ...current.meta, ...incoming.meta, lastImportAt: Date.now() },
+  };
+  return { ok: true, state, stats: { added, updated, kept, days: Object.keys(days).length } };
+}

@@ -4,6 +4,7 @@
 import { resolveDay, backfillCandidates, fixWeek } from "./schedule";
 import { swStart, swPause, swEdit } from "./timers";
 import { prefillFor, exerciseConfig, roundTo } from "./engine";
+import { defaultState } from "./storage";
 import { WORKOUTS, getExercise } from "../data/workouts";
 
 const emptySet = () => ({ weight: "", reps: "", rir: null, done: false, doneAt: null });
@@ -282,6 +283,15 @@ export function reducer(state, action) {
       const wk = state.weeks[action.week] || {};
       return { ...state, weeks: { ...state.weeks, [action.week]: { ...wk, fatigue: action.value, fatigueAt: action.now } } };
     }
+
+    case "SET_META":
+      return { ...state, meta: { ...state.meta, [action.key]: action.value } };
+
+    // E — restoring a backup and the double-confirmed wipe.
+    case "REPLACE_STATE":
+      return action.state;
+    case "RESET_ALL":
+      return { ...defaultState(), meta: { createdAt: Date.now(), migratedFrom: null, migrationLeftovers: [], lastBackupNudgeWeek: null } };
 
     case "BUMP_MSG_INDEX":
       return { ...state, meta: { ...state.meta, msgIndex: ((state.meta.msgIndex || 0) + 1) % action.count } };

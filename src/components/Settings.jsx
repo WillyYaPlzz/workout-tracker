@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { WORKOUTS, WORKOUT_KEYS, REST } from "../data/workouts";
-import { t } from "../data/strings";
-import { wkColor, isLightTheme } from "../data/themes";
+import { t, fill } from "../data/strings";
+import { THEMES, wkColor, isLightTheme } from "../data/themes";
 import { validateWeekdayMap, weekOf } from "../lib/schedule";
-import { storageBytes } from "../lib/storage";
+import { storageBytes, exportPayload, importPayload, defaultState } from "../lib/storage";
 
 export function WeekdayMapEditor({ map, onChange, lang, themeId, th }) {
   const L = o => (typeof o === "string" ? o : o[lang] || o.en);
@@ -62,11 +62,31 @@ export function Setup({ dispatch, lang, themeId, th, todayStr }) {
   );
 }
 
-export default function Settings({ data, dispatch, lang, themeId, th, todayStr }) {
+export default function Settings({ data, dispatch, lang, setLang, themeId, setTheme, th, todayStr, onExport, onImport, onReset }) {
   const currentWeek = weekOf(todayStr, data.program, data.settings.weekStart);
   const [actualWeek, setActualWeek] = useState(currentWeek);
   const [backfill, setBackfill] = useState(false);
   const [draftMap, setDraftMap] = useState(data.program.weekdayMap);
+  const [showWhy, setShowWhy] = useState(false);
+  const [importMsg, setImportMsg] = useState(null);
+  const fileRef = useRef(null);
+  const accent = th.accent || "#00e5ff";
+
+  // E — importing asks explicitly whether to merge or replace before touching anything.
+  function onFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const mode = window.confirm(`${t(lang, "importChoose")}\n\nOK = ${t(lang, "importMerge")}\nCancel = ${t(lang, "importReplace")}`) ? "merge" : "replace";
+      const result = importPayload(String(reader.result), data, mode);
+      if (!result.ok) { setImportMsg({ ok: false, text: t(lang, "importFailed") }); return; }
+      onImport(result.state);
+      setImportMsg({ ok: true, text: result.stats.replaced ? t(lang, "importedOk").replace(/\{\w+\}/g, "") : fill(lang, "importedOk", result.stats) });
+    };
+    reader.readAsText(file);
+  }
   const isLight = isLightTheme(themeId);
   const iBg = isLight ? "#f0e8ed" : th.bg;
 
@@ -118,6 +138,23 @@ export default function Settings({ data, dispatch, lang, themeId, th, todayStr }
         ))}
       </div>
 
+      {/* appearance: theme + language now live here, not in the header */}
+      <div style={card}>
+        <h3 style={h}>{t(lang, "appearance")}</h3>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+          {Object.values(THEMES).map(tm => (
+            <button key={tm.id} onClick={() => setTheme(tm.id)} style={{ flex: 1, minWidth: 58, padding: "10px 4px", borderRadius: 10, cursor: "pointer", textAlign: "center", background: themeId === tm.id ? (tm.accent || "#00e5ff") + "20" : tm.card, border: themeId === tm.id ? `2px solid ${tm.accent || "#00e5ff"}` : `1px solid ${tm.border}`, color: themeId === tm.id ? (tm.accent || "#00e5ff") : tm.text, fontSize: 11, fontWeight: 600, minHeight: 44 }}>
+              {lang === "ar" ? tm.labelAr : tm.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[["en", "English"], ["ar", "العربية"]].map(([code, label]) => (
+            <button key={code} onClick={() => setLang(code)} style={{ flex: 1, minHeight: 44, borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 600, background: lang === code ? accent + "20" : "transparent", color: lang === code ? accent : th.textMuted, border: `1px solid ${lang === code ? accent + "50" : th.borderLight}` }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
       {/* how much space the data is using */}
       <div style={card}>
         <h3 style={h}>{t(lang, "storageUsed")}</h3>
@@ -140,6 +177,59 @@ export default function Settings({ data, dispatch, lang, themeId, th, todayStr }
           <input type="checkbox" checked={backfill} onChange={e => setBackfill(e.target.checked)} style={{ width: 18, height: 18 }}/>
           {t(lang, "backfillFix")}
         </label>
+      </div>
+
+      {/* recovery advice text used when fatigue is low */}
+      <div style={card}>
+        <h3 style={h}>{t(lang, "fatigueAdviceLabel")}</h3>
+        <input type="text" placeholder={t(lang, "fatigueAdvicePlaceholder")}
+          value={data.settings.fatigueAdviceText?.[lang] || ""}
+          onChange={e => dispatch({ type: "SET_SETTING", key: "fatigueAdviceText", value: { ...data.settings.fatigueAdviceText, [lang]: e.target.value } })}
+          style={{ width: "100%", background: iBg, color: th.text, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "10px 12px", fontSize: 13, outline: "none", boxSizing: "border-box" }}/>
+        <h3 style={{ ...h, marginTop: 16 }}>{t(lang, "muscleBandLabel")}</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {["min", "max"].map(k => (
+            <input key={k} type="number" inputMode="numeric" value={data.settings.muscleBand?.[k] ?? (k === "min" ? 10 : 20)}
+              onChange={e => dispatch({ type: "SET_SETTING", key: "muscleBand", value: { ...data.settings.muscleBand, [k]: Math.max(1, parseInt(e.target.value) || 1) } })}
+              style={{ width: 70, background: iBg, color: th.text, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "9px 10px", fontSize: 14, textAlign: "center", outline: "none" }}/>
+          ))}
+          <span style={{ fontSize: 12, color: th.textFaint }}>{t(lang, "setsLabel")}</span>
+        </div>
+      </div>
+
+      {/* data & backup */}
+      <div style={card}>
+        <h3 style={h}>{t(lang, "dataSection")}</h3>
+        <button onClick={onExport} style={{ width: "100%", minHeight: 46, borderRadius: 10, border: `1px solid ${th.borderLight}`, background: "transparent", color: th.text, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>{t(lang, "exportData")}</button>
+        <button onClick={() => fileRef.current?.click()} style={{ width: "100%", minHeight: 46, borderRadius: 10, border: `1px solid ${th.borderLight}`, background: "transparent", color: th.text, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>{t(lang, "importData")}</button>
+        <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={onFile}/>
+        {importMsg && <p style={{ fontSize: 12, color: importMsg.ok ? accent : "#ff5252", margin: "10px 0 0", lineHeight: 1.4 }}>{importMsg.text}</p>}
+        <button onClick={onReset} style={{ width: "100%", minHeight: 46, borderRadius: 10, border: "1px solid #ff525240", background: "#ff525212", color: "#ff5252", fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 14 }}>{t(lang, "resetAll")}</button>
+      </div>
+
+      {/* F.15 — where the defaults come from, so they are auditable */}
+      <div style={card}>
+        <button onClick={() => setShowWhy(!showWhy)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", background: "transparent", border: "none", color: th.text, fontSize: 15, fontWeight: 700, cursor: "pointer", padding: 0, minHeight: 32 }}>
+          {t(lang, "whyTitle")}
+          <span style={{ color: th.textMuted, fontSize: 12, transform: showWhy ? "rotate(180deg)" : "none" }}>▼</span>
+        </button>
+        {showWhy && (
+          <div style={{ marginTop: 12 }}>
+            {[["infoReps", "infoRepsNote", "https://pubmed.ncbi.nlm.nih.gov/38286426/"],
+              ["infoVolume", "infoVolumeNote", "https://link.springer.com/article/10.1007/s40279-025-02344-w"],
+              ["infoLever", "infoLeverNote", "https://www.strongerbyscience.com/progressive-overload-strategies/"],
+              ["infoGuard", "infoGuardNote", null]].map(([body, note, url]) => (
+              <div key={body} style={{ paddingBottom: 12, marginBottom: 12, borderBottom: `1px solid ${th.border}` }}>
+                <p style={{ margin: 0, fontSize: 12.5, color: th.text, lineHeight: 1.5 }}>{t(lang, body)}</p>
+                {url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: accent, textDecoration: "none" }}>{t(lang, note)} ↗</a>
+                ) : (
+                  <span style={{ fontSize: 11, color: th.textFaint }}>{t(lang, note)}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

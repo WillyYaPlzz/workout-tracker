@@ -18,3 +18,36 @@ export function wkColor(themeId, key) {
 export function isLightTheme(themeId) {
   return themeId === "light" || themeId === "blossom";
 }
+
+// Chart parameters per theme. The dashboard reads only from here, so all five
+// themes stay consistent and no chart invents its own colours.
+//
+// Heatmap encoding note: open -> partial -> done is an ORDERED axis (how much of
+// the day got finished), so it uses one hue in lightness steps rather than three
+// separate hues. Three hues (green/amber/red) measured ΔE 3.4 apart under
+// protanopia and could not clear a 3:1 contrast floor on the light themes at the
+// same time; one hue in steps is distinguishable by construction. States that sit
+// OFF that axis (skipped, rest) are neutral, and every cell also carries a glyph,
+// so nothing is encoded by colour alone.
+export function chartColors(themeId, th) {
+  const light = isLightTheme(themeId);
+  const accent = th.accent || (themeId === "blue" ? "#4d9fff" : themeId === "dark" ? "#00e5ff" : "#ff4081");
+  return {
+    accent,
+    grid: th.border,
+    axis: th.textFaint,
+    // ordered completion steps, one hue
+    cellDone: accent,
+    cellPartial: accent + (light ? "70" : "5c"),
+    cellAssumed: accent + (light ? "30" : "26"),
+    cellOpen: light ? "#00000010" : "#ffffff0d",
+    cellRest: "transparent",
+    // off-axis states, neutral
+    cellSkipped: light ? "#9a8a93" : "#484f58",
+    deload: light ? "#7b3fb8" : "#b388ff",
+    warn: light ? "#b56a00" : "#ffab40",
+    band: accent + (light ? "1f" : "18"),
+  };
+}
+
+export const CELL_GLYPH = { done: "✓", assumed: "✓", partial: "◐", skipped: "✕", open: "", rest: "" };
