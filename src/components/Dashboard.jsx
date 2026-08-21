@@ -9,6 +9,7 @@ import { setsPerMuscle, muscleWarnings, weekVsLast } from "../lib/volume";
 import { streak, adherence, weeksDone, skippedCount, totalGymTimeMs, overallCompletion,
          durationSeries, setsPerWeekSeries, notesTimeline, currentWeek, deloadCycle } from "../lib/stats";
 import Heatmap from "./Heatmap";
+import LegacyDashboard from "./LegacyDashboard";
 
 // D — hero: one number, with a ring as its mark. Not a chart.
 function Ring({ pct, color, th, size = 92 }) {
@@ -56,7 +57,7 @@ function Section({ title, th, children, right }) {
   );
 }
 
-export default function Dashboard({ data, lang, themeId, th, todayStr, onOpenDay }) {
+export default function Dashboard({ data, dispatch, lang, themeId, th, todayStr, onOpenDay }) {
   const c = chartColors(themeId, th);
   const isRtl = lang === "ar";
   const L = o => (typeof o === "string" ? o : o[lang] || o.en);
@@ -80,8 +81,30 @@ export default function Dashboard({ data, lang, themeId, th, todayStr, onOpenDay
   const series = progressionSeries(data, exPick).map(p => ({ ...p, label: p.date.slice(5) }));
   const tip = { background: "rgba(0,0,0,0.85)", border: "none", borderRadius: 8, fontSize: 12, color: "#fff" };
 
+  // Which dashboard to show. The choice is remembered.
+  const mode = data.settings.dashboardMode === "legacy" ? "legacy" : "new";
+  const modeSwitch = (
+    <div style={{ display: "flex", gap: 4, background: th.card, borderRadius: 10, padding: 3, border: `1px solid ${th.border}`, marginBottom: 14 }}>
+      {[["new", t(lang, "dashNew")], ["legacy", t(lang, "dashLegacy")]].map(([k, label]) => (
+        <button key={k} onClick={() => dispatch({ type: "SET_SETTING", key: "dashboardMode", value: k })}
+          style={{ flex: 1, minHeight: 40, border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
+            background: mode === k ? c.accent + "25" : "transparent", color: mode === k ? c.accent : th.textMuted }}>{label}</button>
+      ))}
+    </div>
+  );
+
+  if (mode === "legacy") {
+    return (
+      <div style={{ maxWidth: 600, margin: "0 auto", padding: "0 16px" }}>
+        {modeSwitch}
+        <LegacyDashboard data={data} lang={lang} themeId={themeId} th={th} todayStr={todayStr}/>
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "0 16px" }}>
+      {modeSwitch}
       {/* hero */}
       <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 16, marginBottom: 14, display: "flex", alignItems: "center", gap: 16 }}>
         <Ring pct={overall.pct} color={c.accent} th={th}/>

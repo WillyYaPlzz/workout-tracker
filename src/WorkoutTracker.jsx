@@ -4,14 +4,20 @@ import { LANG, t, fill } from "./data/strings";
 import { logicalDate } from "./lib/dates";
 import { exportPayload } from "./lib/storage";
 import { currentWeek, weeksDone } from "./lib/stats";
+import { pickGreeting } from "./lib/greeting";
+import { GREETINGS } from "./data/messages";
+import { Popup } from "./components/ui";
 import { useAppState } from "./hooks/useAppState";
 import DayView from "./components/DayView";
 import Dashboard from "./components/Dashboard";
+import Plan from "./components/Plan";
+import Guide from "./components/Guide";
 import Settings, { Setup } from "./components/Settings";
 
 const TABS = [
   { id: "workout", labelKey: "workout", icon: <path d="M4 9h2v6H4zM7 7h2v10H7zM15 7h2v10h-2zM18 9h2v6h-2zM10 11h4v2h-4z"/> },
   { id: "dashboard", labelKey: "dashboard", icon: <path d="M4 13h4v7H4zM10 4h4v16h-4zM16 9h4v11h-4z"/> },
+  { id: "plan", labelKey: "planTab", icon: <path d="M5 4h11a2 2 0 012 2v13a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm2 4v2h7V8H7zm0 4v2h7v-2H7zm0 4v2h4v-2H7z"/> },
   { id: "settings", labelKey: "settings", icon: <path d="M12 8a4 4 0 100 8 4 4 0 000-8zm0 6a2 2 0 110-4 2 2 0 010 4zm8.4-2a6.5 6.5 0 00-.1-1l1.7-1.3-1.8-3.1-2 .8a6.6 6.6 0 00-1.7-1l-.3-2.1H10.8l-.3 2.1a6.6 6.6 0 00-1.7 1l-2-.8L5 10l1.7 1.3a6.5 6.5 0 000 2L5 14.6l1.8 3.1 2-.8c.5.4 1.1.8 1.7 1l.3 2.1h3.4l.3-2.1c.6-.2 1.2-.6 1.7-1l2 .8 1.8-3.1-1.7-1.3c.1-.3.1-.7.1-1z"/> },
 ];
 
@@ -27,6 +33,7 @@ export default function WorkoutTracker() {
   const [todayStr, setTodayStr] = useState(() => logicalDate(new Date(), 4));
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [nudgeWeek, setNudgeWeek] = useState(null);
+  const [greeting, setGreeting] = useState(null);
 
   useEffect(() => {
     const tick = () => setTodayStr(logicalDate(new Date(), data.settings.rolloverHour));
@@ -82,6 +89,24 @@ export default function WorkoutTracker() {
     }
   }, [done, needsSetup, data.meta.lastBackupNudgeWeek, dispatch]);
 
+  // Greet once a day, the first time the app is opened. The completion popup
+  // lives in DayView and only fires on finishing a workout, so the two never
+  // land together.
+  useEffect(() => {
+    if (needsSetup) return;
+    const g = pickGreeting({
+      now: new Date(),
+      rolloverHour: data.settings.rolloverHour,
+      lastGreetedDate: data.meta.lastGreetedDate ?? null,
+      index: data.meta.greetIndex ?? 0,
+      greetings: GREETINGS,
+    });
+    if (!g.show) return;
+    setGreeting(g.message);
+    dispatch({ type: "SET_META", key: "lastGreetedDate", value: g.date });
+    dispatch({ type: "SET_META", key: "greetIndex", value: (data.meta.greetIndex ?? 0) + 1 });
+  }, [needsSetup]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   function openDay(date) {
     setSelectedDate(date);
     setView("workout");
@@ -91,6 +116,8 @@ export default function WorkoutTracker() {
 
   return (
     <div dir={LANG[lang].dir} style={{ background: th.bg, color: th.text, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: needsSetup ? 40 : `calc(${TAB_H}px + env(safe-area-inset-bottom) + 12px)` }}>
+      {greeting && <Popup message={greeting} onClose={() => setGreeting(null)} lang={lang} dir={/^[A-Za-z]/.test(greeting) ? "ltr" : "rtl"}/>}
+
       {/* a failed write takes over the top of the screen until it is resolved */}
       {storage.saveError && (
         <div style={{ position: "sticky", top: 0, zIndex: 700, background: "#ff5252", color: "#fff", padding: "10px 16px" }}>
@@ -108,7 +135,12 @@ export default function WorkoutTracker() {
       {/* iOS-style large title */}
       <div style={{ padding: "calc(env(safe-area-inset-top) + 18px) 16px 12px", maxWidth: 600, margin: "0 auto" }}>
         <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, letterSpacing: -0.5 }}>
-          {needsSetup ? t(lang, "title") : t(lang, view === "workout" ? "title" : view === "dashboard" ? "dashboard" : "settings")}
+          {needsSetup ? t(lang, "title")
+            : view === "workout" ? t(lang, "title")
+            : view === "dashboard" ? t(lang, "dashboard")
+            : view === "plan" ? t(lang, "planTitle")
+            : view === "guide" ? t(lang, "guideTitle")
+            : t(lang, "settings")}
         </h1>
       </div>
 
@@ -128,9 +160,14 @@ export default function WorkoutTracker() {
       ) : view === "workout" ? (
         <DayView data={data} dispatch={dispatch} lang={lang} themeId={themeId} th={th} todayStr={todayStr} selectedDate={selectedDate} setSelectedDate={setSelectedDate} gotoSettings={() => setView("settings")}/>
       ) : view === "dashboard" ? (
-        <Dashboard data={data} lang={lang} themeId={themeId} th={th} todayStr={todayStr} onOpenDay={openDay}/>
+        <Dashboard data={data} dispatch={dispatch} lang={lang} themeId={themeId} th={th} todayStr={todayStr} onOpenDay={openDay}/>
+      ) : view === "plan" ? (
+        <Plan data={data} lang={lang} themeId={themeId} th={th} todayStr={todayStr}/>
+      ) : view === "guide" ? (
+        <Guide lang={lang} th={th} themeId={themeId} onBack={() => setView("settings")}/>
       ) : (
         <Settings data={data} dispatch={dispatch} lang={lang} setLang={setLang} themeId={themeId} setTheme={setTheme} th={th} todayStr={todayStr}
+          onOpenGuide={() => setView("guide")}
           onExport={downloadBackup}
           onImport={state => dispatch({ type: "REPLACE_STATE", state })}
           onReset={() => {
@@ -153,7 +190,7 @@ export default function WorkoutTracker() {
           borderTop: `1px solid ${th.border}`, paddingBottom: "env(safe-area-inset-bottom)" }}>
           <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", height: TAB_H }}>
             {TABS.map(tab => {
-              const active = view === tab.id;
+              const active = view === tab.id || (tab.id === "settings" && view === "guide");
               return (
                 <button key={tab.id} onClick={() => setView(tab.id)} style={{
                   flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
