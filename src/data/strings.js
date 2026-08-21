@@ -1,0 +1,71 @@
+// All UI strings, EN + AR. Keys are grouped by screen with prefixes.
+// t(lang, key) falls back to English so a missing Arabic string never renders blank.
+
+export const LANG = {
+  en: {
+    dir: "ltr",
+    title: "Workout Program", workout: "Workout", dashboard: "Dashboard", settings: "Settings",
+    setsReps: "2-4 sets · 8-12 reps", completeToday: "Complete Workout", reset: "Reset",
+    pickWorkout: "Pick a workout to view progress", sessions: "sessions", best: "Best",
+    personalBest: "Personal Best", noData: "No data yet — complete a workout to start tracking",
+    all: "All", notes: "Notes...", video: "Video",
+    warmup: "Warm Up", mainWorkout: "Workout", cooldown: "Cool Down · Cardio", ok: "OK",
+    // schedule / day view
+    week: "Week", today: "Today", jumpToday: "Jump to today", restDay: "Rest Day",
+    restDaySub: "Recovery — no workout scheduled", deload: "Deload", deloadWeek: "Deload week",
+    makeDeload: "Make this a deload week", makeNormal: "Make this a normal week",
+    behindBanner: "You have an unfinished workout from", goThere: "Go there",
+    swapped: "Swapped", swapDays: "Swap two days this week", removeSwap: "Remove swap",
+    swapWith: "Swap with...", wrongWeek: "Wrong week? Fix it",
+    dayDone: "Done", dayPartial: "In progress", daySkipped: "Skipped", dayAssumed: "Assumed done", dayOpen: "Open",
+    markDone: "Mark day done", skipDay: "Skip day", reopenDay: "Reopen day", skipReason: "Reason (optional)...",
+    // setup
+    setupTitle: "Set up your schedule", setupIntro: "Assign each workout to a weekday. The rest are rest days.",
+    setupWeek: "Which week of the program are you in?", setupBackfill: "Mark earlier days of the program as already done",
+    setupStart: "Start", setupErrDup: "Each workout must be used exactly once",
+    weekdays: ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+    weekdaysShort: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
+    rest: "Rest",
+    // settings
+    schedule: "Schedule", weekdayMap: "Weekday plan", rolloverHour: "Day starts at",
+    rolloverHint: "Sessions before this hour count for the previous day",
+    fixWeekTitle: "Where am I now?", fixWeekPick: "I'm actually in week", apply: "Apply",
+    backfillFix: "Back-fill earlier days as done", cancel: "Cancel", save: "Save",
+    language: "Language", theme: "Theme",
+    dangerZone: "Data", currentWeekIs: "The app thinks this is week",
+  },
+  ar: {
+    dir: "rtl",
+    title: "برنامج التمارين", workout: "التمرين", dashboard: "لوحة التحكم", settings: "الإعدادات",
+    setsReps: "2-4 جولات · 8-12 تكرار", completeToday: "إكمال التمرين", reset: "إعادة تعيين",
+    pickWorkout: "اختر تمرين لعرض التقدم", sessions: "جلسات", best: "أفضل",
+    personalBest: "أفضل رقم شخصي", noData: "لا توجد بيانات — أكمل تمريناً لبدء التتبع",
+    all: "الكل", notes: "ملاحظات...", video: "فيديو",
+    warmup: "الإحماء", mainWorkout: "التمرين", cooldown: "تمارين التبريد · كارديو", ok: "تمام",
+    week: "الأسبوع", today: "اليوم", jumpToday: "الانتقال إلى اليوم", restDay: "يوم راحة",
+    restDaySub: "استشفاء — لا يوجد تمرين اليوم", deload: "ديلود", deloadWeek: "أسبوع ديلود",
+    makeDeload: "اجعله أسبوع ديلود", makeNormal: "اجعله أسبوعاً عادياً",
+    behindBanner: "عندك تمرين غير مكتمل من", goThere: "اذهب إليه",
+    swapped: "مُبدّل", swapDays: "بدّل يومين هذا الأسبوع", removeSwap: "إزالة التبديل",
+    swapWith: "بدّل مع...", wrongWeek: "أسبوع غلط؟ صحّحيه",
+    dayDone: "مكتمل", dayPartial: "جاري", daySkipped: "متخطى", dayAssumed: "مُفترض إنجازه", dayOpen: "مفتوح",
+    markDone: "إنهاء اليوم", skipDay: "تخطي اليوم", reopenDay: "إعادة فتح اليوم", skipReason: "السبب (اختياري)...",
+    setupTitle: "جهّزي جدولك", setupIntro: "خصصي كل تمرين ليوم من الأسبوع. الباقي أيام راحة.",
+    setupWeek: "في أي أسبوع من البرنامج أنتِ الآن؟", setupBackfill: "اعتبري الأيام السابقة من البرنامج منجزة",
+    setupStart: "ابدئي", setupErrDup: "يجب استخدام كل تمرين مرة واحدة بالضبط",
+    weekdays: ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"],
+    weekdaysShort: ["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"],
+    rest: "راحة",
+    schedule: "الجدول", weekdayMap: "خطة الأسبوع", rolloverHour: "يبدأ اليوم الساعة",
+    rolloverHint: "الجلسات قبل هذه الساعة تُحسب لليوم السابق",
+    fixWeekTitle: "وين وصلت؟", fixWeekPick: "أنا فعلياً في الأسبوع", apply: "تطبيق",
+    backfillFix: "اعتبري الأيام السابقة منجزة", cancel: "إلغاء", save: "حفظ",
+    language: "اللغة", theme: "المظهر",
+    dangerZone: "البيانات", currentWeekIs: "التطبيق يعتبر هذا الأسبوع",
+  },
+};
+
+export function t(lang, key) {
+  const v = LANG[lang]?.[key];
+  return v !== undefined ? v : LANG.en[key];
+}
