@@ -65,6 +65,41 @@ export function load(storage, now = Date.now()) {
   return state;
 }
 
+// A save can genuinely fail: the origin's storage quota fills up, or the
+// browser denies storage entirely (private windows, blocked site data). Failing
+// silently would let someone keep training while nothing is written, so save()
+// reports what happened and the UI shows it. Never swallow this.
 export function save(storage, state) {
-  try { storage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* quota — nudge handled in UI */ }
+  let json;
+  try {
+    json = JSON.stringify(state);
+  } catch (e) {
+    return { ok: false, bytes: 0, reason: "serialize", message: String(e?.message || e) };
+  }
+  try {
+    storage.setItem(STORAGE_KEY, json);
+    return { ok: true, bytes: json.length };
+  } catch (e) {
+    return { ok: false, bytes: json.length, reason: isQuotaError(e) ? "quota" : "blocked", message: String(e?.message || e) };
+  }
+}
+
+// Quota errors are reported inconsistently across browsers.
+export function isQuotaError(e) {
+  if (!e) return false;
+  return e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+         e.code === 22 || e.code === 1014;
+}
+
+// Bytes currently held by this app, for the readout in settings.
+export function storageBytes(storage) {
+  try {
+    const raw = storage.getItem(STORAGE_KEY) || "";
+    return new TextEncoder().encode(raw).length;
+  } catch { return 0; }
+}
+
+// A JSON backup of everything, as a downloadable blob payload.
+export function exportPayload(state) {
+  return JSON.stringify({ app: "workout-tracker", exportedAt: new Date().toISOString(), state }, null, 2);
 }

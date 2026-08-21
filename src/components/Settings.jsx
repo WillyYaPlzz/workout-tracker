@@ -3,6 +3,7 @@ import { WORKOUTS, WORKOUT_KEYS, REST } from "../data/workouts";
 import { t } from "../data/strings";
 import { wkColor, isLightTheme } from "../data/themes";
 import { validateWeekdayMap, weekOf } from "../lib/schedule";
+import { storageBytes } from "../lib/storage";
 
 export function WeekdayMapEditor({ map, onChange, lang, themeId, th }) {
   const L = o => (typeof o === "string" ? o : o[lang] || o.en);
@@ -115,6 +116,15 @@ export default function Settings({ data, dispatch, lang, themeId, th, todayStr }
             <input type="checkbox" checked={!!data.settings[key]} onChange={e => dispatch({ type: "SET_SETTING", key, value: e.target.checked })} style={{ width: 20, height: 20 }}/>
           </label>
         ))}
+      </div>
+
+      {/* how much space the data is using */}
+      <div style={card}>
+        <h3 style={h}>{t(lang, "storageUsed")}</h3>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span style={{ fontSize: 22, fontWeight: 700, color: th.text }}>{(storageBytes(window.localStorage) / 1024).toFixed(0)} KB</span>
+          <span style={{ fontSize: 12, color: th.textFaint }}>{t(lang, "storageOf")}</span>
+        </div>
       </div>
 
       {/* wrong week fix */}

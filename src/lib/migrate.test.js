@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { migrateV1 } from "./migrate";
-import { load, STORAGE_KEY } from "./storage";
+import { load, save, isQuotaError, storageBytes, exportPayload, defaultState, STORAGE_KEY } from "./storage";
 
 const v1Hist = {
   UB1: {
@@ -84,5 +84,67 @@ describe("storage.load", () => {
     const state = load(s);
     expect(state.settings.rolloverHour).toBe(5);
     expect(state.settings.trainingAge).toBe("novice");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A failed write must never pass unnoticed
+// ---------------------------------------------------------------------------
+function throwingStorage(err) {
+  const m = new Map();
+  return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: () => { throw err; }, removeItem: k => m.delete(k) };
+}
+
+describe("storage.save reports failures", () => {
+  it("reports success with the byte count", () => {
+    const s = fakeStorage();
+    const r = save(s, defaultState());
+    expect(r.ok).toBe(true);
+    expect(r.bytes).toBeGreaterThan(0);
+    expect(s.getItem(STORAGE_KEY)).toBeTruthy();
+  });
+  it("reports a full quota instead of swallowing it", () => {
+    const err = new Error("exceeded");
+    err.name = "QuotaExceededError";
+    const r = save(throwingStorage(err), defaultState());
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("quota");
+  });
+  it("reports blocked storage (private window / site data off)", () => {
+    const r = save(throwingStorage(new Error("access denied")), defaultState());
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("blocked");
+  });
+  it("reports a serialization failure rather than throwing", () => {
+    const cyclic = defaultState();
+    cyclic.days.self = cyclic;
+    const r = save(fakeStorage(), cyclic);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("serialize");
+  });
+  it("recognises the quota error shapes browsers actually throw", () => {
+    expect(isQuotaError({ name: "QuotaExceededError" })).toBe(true);
+    expect(isQuotaError({ name: "NS_ERROR_DOM_QUOTA_REACHED" })).toBe(true);
+    expect(isQuotaError({ code: 22 })).toBe(true);
+    expect(isQuotaError({ code: 1014 })).toBe(true);
+    expect(isQuotaError(new Error("something else"))).toBe(false);
+    expect(isQuotaError(null)).toBe(false);
+  });
+});
+
+describe("backup export", () => {
+  it("produces a restorable JSON payload of the whole state", () => {
+    const state = defaultState();
+    state.program = { anchor: { date: "2026-08-21", week: 3 }, weekdayMap: {}, deloadEvery: 6 };
+    const parsed = JSON.parse(exportPayload(state));
+    expect(parsed.app).toBe("workout-tracker");
+    expect(parsed.exportedAt).toBeTruthy();
+    expect(parsed.state.program.anchor.week).toBe(3);
+  });
+  it("reports how much space the data uses", () => {
+    const s = fakeStorage();
+    expect(storageBytes(s)).toBe(0);
+    save(s, defaultState());
+    expect(storageBytes(s)).toBeGreaterThan(50);
   });
 });

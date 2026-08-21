@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { THEMES } from "./data/themes";
 import { LANG, t } from "./data/strings";
 import { logicalDate } from "./lib/dates";
+import { exportPayload } from "./lib/storage";
 import { useAppState } from "./hooks/useAppState";
 import DayView from "./components/DayView";
 import Dashboard from "./components/Dashboard";
 import Settings, { Setup } from "./components/Settings";
 
 export default function WorkoutTracker() {
-  const [data, dispatch] = useAppState();
+  const [data, dispatch, storage] = useAppState();
   const [themeId, setThemeId] = useState(() => {
     try { const v = localStorage.getItem("wt-theme"); return v && THEMES[v] ? v : "dark"; } catch { return "dark"; }
   });
@@ -51,9 +52,39 @@ export default function WorkoutTracker() {
 
   const needsSetup = !data.program;
 
+  // A failed write is never silent: it takes over the top of the screen and
+  // offers the one thing that actually rescues the data — a backup file.
+  function downloadBackup() {
+    try {
+      const blob = new Blob([exportPayload(data)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `workout-backup-${todayStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {}
+  }
+
   return (
     <div dir={LANG[lang].dir} style={{ background: th.bg, color: th.text, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 80 }}>
       <div style={{ minHeight: 24 }}/>
+      {storage.saveError && (
+        <div style={{ position: "sticky", top: 0, zIndex: 700, background: "#ff5252", color: "#fff", padding: "10px 16px calc(10px)", marginBottom: 8 }}>
+          <div style={{ maxWidth: 600, margin: "0 auto" }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>
+              ⚠ {t(lang, storage.saveError.reason === "quota" ? "saveFailedQuota" : "saveFailedBlocked")}
+            </div>
+            <div style={{ fontSize: 12, marginTop: 4, opacity: 0.95, lineHeight: 1.4 }}>{t(lang, "saveFailedHint")}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <button onClick={downloadBackup} style={{ background: "#fff", color: "#ff5252", border: "none", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>{t(lang, "downloadBackup")}</button>
+              <button onClick={storage.retrySave} style={{ background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,0.6)", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", minHeight: 40 }}>{t(lang, "retrySave")}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ padding: "16px 16px 0", maxWidth: 600, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{t(lang, "title")}</h1>

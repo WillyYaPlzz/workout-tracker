@@ -78,6 +78,12 @@ export const LANG = {
     repRangeLabel: "Rep range", incrementLabel: "Load step (kg)", exSettings: "Exercise settings",
     timelineTitle: "Why the numbers moved",
     tlStallAction: "Stall action", tlLeverChange: "Lever changed", tlJump: "Load jump confirmed",
+    // storage health
+    saveFailedQuota: "Storage is full — your last changes were NOT saved",
+    saveFailedBlocked: "This browser is blocking storage — your changes are NOT being saved",
+    saveFailedHint: "Download a backup now, then free up space (or leave private browsing) and retry.",
+    downloadBackup: "Download backup", retrySave: "Retry save", savedOk: "Saved",
+    storageUsed: "Data stored", storageOf: "of ~5 MB typical limit",
   },
   ar: {
     dir: "rtl",
@@ -150,6 +156,11 @@ export const LANG = {
     repRangeLabel: "نطاق التكرارات", incrementLabel: "خطوة الوزن (كجم)", exSettings: "إعدادات التمرين",
     timelineTitle: "لماذا تغيّرت الأرقام",
     tlStallAction: "إجراء توقف", tlLeverChange: "تغيير المحرك", tlJump: "تأكيد زيادة وزن",
+    saveFailedQuota: "المساحة ممتلئة — لم يتم حفظ آخر تغييراتك",
+    saveFailedBlocked: "المتصفح يمنع التخزين — لا يتم حفظ تغييراتك",
+    saveFailedHint: "نزّلي نسخة احتياطية الآن، ثم فرّغي مساحة (أو اخرجي من التصفح الخاص) وأعيدي المحاولة.",
+    downloadBackup: "تنزيل نسخة احتياطية", retrySave: "إعادة المحاولة", savedOk: "تم الحفظ",
+    storageUsed: "حجم البيانات", storageOf: "من الحد المعتاد ٥ ميجابايت",
   },
 };
 
