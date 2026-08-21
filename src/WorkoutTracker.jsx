@@ -1,27 +1,33 @@
-import { useEffect, useRef, useState } from "react";
-import { THEMES } from "./data/themes";
-import { LANG, t } from "./data/strings";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { THEMES, isLightTheme } from "./data/themes";
+import { LANG, t, fill } from "./data/strings";
 import { logicalDate } from "./lib/dates";
 import { exportPayload } from "./lib/storage";
+import { currentWeek, weeksDone } from "./lib/stats";
 import { useAppState } from "./hooks/useAppState";
 import DayView from "./components/DayView";
 import Dashboard from "./components/Dashboard";
 import Settings, { Setup } from "./components/Settings";
+
+const TABS = [
+  { id: "workout", labelKey: "workout", icon: <path d="M4 9h2v6H4zM7 7h2v10H7zM15 7h2v10h-2zM18 9h2v6h-2zM10 11h4v2h-4z"/> },
+  { id: "dashboard", labelKey: "dashboard", icon: <path d="M4 13h4v7H4zM10 4h4v16h-4zM16 9h4v11h-4z"/> },
+  { id: "settings", labelKey: "settings", icon: <path d="M12 8a4 4 0 100 8 4 4 0 000-8zm0 6a2 2 0 110-4 2 2 0 010 4zm8.4-2a6.5 6.5 0 00-.1-1l1.7-1.3-1.8-3.1-2 .8a6.6 6.6 0 00-1.7-1l-.3-2.1H10.8l-.3 2.1a6.6 6.6 0 00-1.7 1l-2-.8L5 10l1.7 1.3a6.5 6.5 0 000 2L5 14.6l1.8 3.1 2-.8c.5.4 1.1.8 1.7 1l.3 2.1h3.4l.3-2.1c.6-.2 1.2-.6 1.7-1l2 .8 1.8-3.1-1.7-1.3c.1-.3.1-.7.1-1z"/> },
+];
 
 export default function WorkoutTracker() {
   const [data, dispatch, storage] = useAppState();
   const [themeId, setThemeId] = useState(() => {
     try { const v = localStorage.getItem("wt-theme"); return v && THEMES[v] ? v : "dark"; } catch { return "dark"; }
   });
-  const [lang, setLang] = useState(() => {
+  const [lang, setLangState] = useState(() => {
     try { const v = localStorage.getItem("wt-lang"); return v === "en" || v === "ar" ? v : "en"; } catch { return "en"; }
   });
   const [view, setView] = useState("workout");
-  const [showTP, setShowTP] = useState(false);
   const [todayStr, setTodayStr] = useState(() => logicalDate(new Date(), 4));
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [nudgeWeek, setNudgeWeek] = useState(null);
 
-  // Keep the logical "today" fresh (rollover hour, app left open across midnight).
   useEffect(() => {
     const tick = () => setTodayStr(logicalDate(new Date(), data.settings.rolloverHour));
     tick();
@@ -29,7 +35,6 @@ export default function WorkoutTracker() {
     return () => clearInterval(id);
   }, [data.settings.rolloverHour]);
 
-  // When "today" flips while the user is viewing it, follow along.
   const prevToday = useRef(todayStr);
   useEffect(() => {
     if (selectedDate === prevToday.current) setSelectedDate(todayStr);
@@ -37,23 +42,20 @@ export default function WorkoutTracker() {
   }, [todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const th = THEMES[themeId] || THEMES.dark;
-  const isRtl = lang === "ar";
+  const isLight = isLightTheme(themeId);
+  const accent = th.accent || "#00e5ff";
 
-  function toggleLang() {
-    const n = lang === "en" ? "ar" : "en";
-    setLang(n);
+  const setLang = useCallback(n => {
+    setLangState(n);
     try { localStorage.setItem("wt-lang", n); } catch {}
-  }
-  function setTheme(id) {
+  }, []);
+  const setTheme = useCallback(id => {
     setThemeId(id);
-    setShowTP(false);
     try { localStorage.setItem("wt-theme", id); } catch {}
-  }
+  }, []);
 
   const needsSetup = !data.program;
 
-  // A failed write is never silent: it takes over the top of the screen and
-  // offers the one thing that actually rescues the data — a backup file.
   function downloadBackup() {
     try {
       const blob = new Blob([exportPayload(data)], { type: "application/json" });
@@ -68,15 +70,32 @@ export default function WorkoutTracker() {
     } catch {}
   }
 
+  // E — a gentle nudge to back up, once, each time a week closes.
+  const week = needsSetup ? 1 : currentWeek(data, todayStr);
+  const done = needsSetup ? 0 : weeksDone(data, todayStr);
+  useEffect(() => {
+    if (needsSetup) return;
+    const last = data.meta.lastBackupNudgeWeek ?? 0;
+    if (done > 0 && done > last) {
+      setNudgeWeek(done);
+      dispatch({ type: "SET_META", key: "lastBackupNudgeWeek", value: done });
+    }
+  }, [done, needsSetup, data.meta.lastBackupNudgeWeek, dispatch]);
+
+  function openDay(date) {
+    setSelectedDate(date);
+    setView("workout");
+  }
+
+  const TAB_H = 56;
+
   return (
-    <div dir={LANG[lang].dir} style={{ background: th.bg, color: th.text, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 80 }}>
-      <div style={{ minHeight: 24 }}/>
+    <div dir={LANG[lang].dir} style={{ background: th.bg, color: th.text, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: needsSetup ? 40 : `calc(${TAB_H}px + env(safe-area-inset-bottom) + 12px)` }}>
+      {/* a failed write takes over the top of the screen until it is resolved */}
       {storage.saveError && (
-        <div style={{ position: "sticky", top: 0, zIndex: 700, background: "#ff5252", color: "#fff", padding: "10px 16px calc(10px)", marginBottom: 8 }}>
+        <div style={{ position: "sticky", top: 0, zIndex: 700, background: "#ff5252", color: "#fff", padding: "10px 16px" }}>
           <div style={{ maxWidth: 600, margin: "0 auto" }}>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>
-              ⚠ {t(lang, storage.saveError.reason === "quota" ? "saveFailedQuota" : "saveFailedBlocked")}
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>⚠ {t(lang, storage.saveError.reason === "quota" ? "saveFailedQuota" : "saveFailedBlocked")}</div>
             <div style={{ fontSize: 12, marginTop: 4, opacity: 0.95, lineHeight: 1.4 }}>{t(lang, "saveFailedHint")}</div>
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <button onClick={downloadBackup} style={{ background: "#fff", color: "#ff5252", border: "none", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", minHeight: 40 }}>{t(lang, "downloadBackup")}</button>
@@ -85,43 +104,70 @@ export default function WorkoutTracker() {
           </div>
         </div>
       )}
-      <div style={{ padding: "16px 16px 0", maxWidth: 600, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{t(lang, "title")}</h1>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <button onClick={() => setShowTP(!showTP)} style={{ background: th.border, color: th.text, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "6px 8px", fontSize: 14, cursor: "pointer", lineHeight: 1, minHeight: 32 }}>🎨</button>
-            <button onClick={toggleLang} style={{ background: th.border, color: th.text, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "6px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700, minHeight: 32 }}>{lang === "en" ? "عربي" : "EN"}</button>
-            {!needsSetup && ["workout", "dashboard", "settings"].map(v => (
-              <button key={v} onClick={() => setView(v)} style={{ background: view === v ? th.border : "transparent", color: view === v ? th.text : th.textMuted, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "6px 10px", fontSize: 13, cursor: "pointer", fontWeight: 500, minHeight: 32 }}>
-                {v === "workout" ? t(lang, "workout") : v === "dashboard" ? t(lang, "dashboard") : "⚙︎"}
-              </button>
-            ))}
+
+      {/* iOS-style large title */}
+      <div style={{ padding: "calc(env(safe-area-inset-top) + 18px) 16px 12px", maxWidth: 600, margin: "0 auto" }}>
+        <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, letterSpacing: -0.5 }}>
+          {needsSetup ? t(lang, "title") : t(lang, view === "workout" ? "title" : view === "dashboard" ? "dashboard" : "settings")}
+        </h1>
+      </div>
+
+      {/* backup nudge on a completed week */}
+      {nudgeWeek && !needsSetup && (
+        <div style={{ maxWidth: 600, margin: "0 auto 10px", padding: "0 16px" }}>
+          <div style={{ background: accent + "12", border: `1px solid ${accent}35`, borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ flex: 1, fontSize: 12, color: th.text }}>{fill(lang, "backupNudge", { w: nudgeWeek })}</span>
+            <button onClick={() => { downloadBackup(); setNudgeWeek(null); }} style={{ background: accent, color: isLight ? "#fff" : th.bg, border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{t(lang, "exportData")}</button>
+            <button onClick={() => setNudgeWeek(null)} style={{ background: "transparent", color: th.textMuted, border: "none", fontSize: 16, cursor: "pointer", padding: "0 4px" }}>✕</button>
           </div>
         </div>
-        {showTP && (
-          <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-            {Object.values(THEMES).map(tm => (
-              <button key={tm.id} onClick={() => setTheme(tm.id)} style={{ flex: 1, minWidth: 55, padding: "10px 4px", borderRadius: 10, cursor: "pointer", textAlign: "center", background: themeId === tm.id ? (tm.accent || "#00e5ff") + "20" : tm.card, border: themeId === tm.id ? `2px solid ${tm.accent || "#00e5ff"}` : `1px solid ${tm.border}`, color: themeId === tm.id ? (tm.accent || "#00e5ff") : tm.text, fontSize: 11, fontWeight: 600 }}>
-                {lang === "ar" ? tm.labelAr : tm.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
 
       {needsSetup ? (
         <Setup dispatch={dispatch} lang={lang} themeId={themeId} th={th} todayStr={todayStr}/>
       ) : view === "workout" ? (
         <DayView data={data} dispatch={dispatch} lang={lang} themeId={themeId} th={th} todayStr={todayStr} selectedDate={selectedDate} setSelectedDate={setSelectedDate} gotoSettings={() => setView("settings")}/>
       ) : view === "dashboard" ? (
-        <Dashboard data={data} lang={lang} themeId={themeId} th={th} todayStr={todayStr}/>
+        <Dashboard data={data} lang={lang} themeId={themeId} th={th} todayStr={todayStr} onOpenDay={openDay}/>
       ) : (
-        <Settings data={data} dispatch={dispatch} lang={lang} themeId={themeId} th={th} todayStr={todayStr}/>
+        <Settings data={data} dispatch={dispatch} lang={lang} setLang={setLang} themeId={themeId} setTheme={setTheme} th={th} todayStr={todayStr}
+          onExport={downloadBackup}
+          onImport={state => dispatch({ type: "REPLACE_STATE", state })}
+          onReset={() => {
+            if (!window.confirm(t(lang, "resetConfirm1"))) return;
+            if (!window.confirm(t(lang, "resetConfirm2"))) return;
+            dispatch({ type: "RESET_ALL" });
+            setView("workout");
+          }}/>
       )}
 
-      <div style={{ textAlign: "center", padding: "40px 16px 20px", maxWidth: 600, margin: "0 auto" }}>
+      <div style={{ textAlign: "center", padding: "30px 16px 16px", maxWidth: 600, margin: "0 auto" }}>
         <p style={{ fontSize: 13, color: th.textFaint, fontWeight: 500 }}>For my LOVLY Leen❤️ @ 2026</p>
       </div>
+
+      {/* iOS-style bottom tab bar */}
+      {!needsSetup && (
+        <nav style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 750,
+          background: isLight ? "rgba(255,255,255,0.88)" : th.card + "e6",
+          backdropFilter: "saturate(180%) blur(20px)", WebkitBackdropFilter: "saturate(180%) blur(20px)",
+          borderTop: `1px solid ${th.border}`, paddingBottom: "env(safe-area-inset-bottom)" }}>
+          <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", height: TAB_H }}>
+            {TABS.map(tab => {
+              const active = view === tab.id;
+              return (
+                <button key={tab.id} onClick={() => setView(tab.id)} style={{
+                  flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+                  background: "transparent", border: "none", cursor: "pointer", padding: 0,
+                  color: active ? accent : th.textMuted, WebkitTapHighlightColor: "transparent",
+                }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">{tab.icon}</svg>
+                  <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{t(lang, tab.labelKey)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
