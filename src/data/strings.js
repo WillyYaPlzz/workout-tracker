@@ -128,6 +128,9 @@ export const LANG = {
     onDay: "on {d}", notScheduled: "Not on your weekday plan", exercisesCount: "{n} exercises",
     bestSoFar: "Best", tapForHistory: "Tap an exercise for its history",
     dashNew: "New dashboard", dashLegacy: "Legacy dashboard",
+    guideTitle: "How this works", guideOpen: "Read the guide",
+    guideIntro: "What every setting and label in this app means, and how to choose.",
+    howToChoose: "HOW TO CHOOSE",
     repsRange: "{a}-{b} reps", stepKg: "+{n} kg steps", primary: "Primary", secondary: "Also works",
   },
   ar: {
@@ -248,6 +251,9 @@ export const LANG = {
     onDay: "يوم {d}", notScheduled: "غير مجدول في خطة أسبوعك", exercisesCount: "{n} حركات",
     bestSoFar: "الأفضل", tapForHistory: "اضغطي على أي حركة لعرض سجلها",
     dashNew: "اللوحة الجديدة", dashLegacy: "اللوحة السابقة",
+    guideTitle: "كيف يعمل هذا", guideOpen: "اقرئي الدليل",
+    guideIntro: "معنى كل إعداد ومصطلح في التطبيق، وكيف تختارين.",
+    howToChoose: "كيف تختارين",
     repsRange: "{a}-{b} تكرار", stepKg: "زيادة {n} كجم", primary: "أساسية", secondary: "تعمل أيضاً",
   },
 };

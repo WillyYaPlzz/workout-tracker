@@ -8,6 +8,7 @@ import { useAppState } from "./hooks/useAppState";
 import DayView from "./components/DayView";
 import Dashboard from "./components/Dashboard";
 import Plan from "./components/Plan";
+import Guide from "./components/Guide";
 import Settings, { Setup } from "./components/Settings";
 
 const TABS = [
@@ -114,6 +115,7 @@ export default function WorkoutTracker() {
             : view === "workout" ? t(lang, "title")
             : view === "dashboard" ? t(lang, "dashboard")
             : view === "plan" ? t(lang, "planTitle")
+            : view === "guide" ? t(lang, "guideTitle")
             : t(lang, "settings")}
         </h1>
       </div>
@@ -137,8 +139,11 @@ export default function WorkoutTracker() {
         <Dashboard data={data} dispatch={dispatch} lang={lang} themeId={themeId} th={th} todayStr={todayStr} onOpenDay={openDay}/>
       ) : view === "plan" ? (
         <Plan data={data} lang={lang} themeId={themeId} th={th} todayStr={todayStr}/>
+      ) : view === "guide" ? (
+        <Guide lang={lang} th={th} themeId={themeId} onBack={() => setView("settings")}/>
       ) : (
         <Settings data={data} dispatch={dispatch} lang={lang} setLang={setLang} themeId={themeId} setTheme={setTheme} th={th} todayStr={todayStr}
+          onOpenGuide={() => setView("guide")}
           onExport={downloadBackup}
           onImport={state => dispatch({ type: "REPLACE_STATE", state })}
           onReset={() => {
@@ -161,7 +166,7 @@ export default function WorkoutTracker() {
           borderTop: `1px solid ${th.border}`, paddingBottom: "env(safe-area-inset-bottom)" }}>
           <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", height: TAB_H }}>
             {TABS.map(tab => {
-              const active = view === tab.id;
+              const active = view === tab.id || (tab.id === "settings" && view === "guide");
               return (
                 <button key={tab.id} onClick={() => setView(tab.id)} style={{
                   flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,

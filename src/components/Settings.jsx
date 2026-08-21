@@ -68,7 +68,7 @@ export function Setup({ dispatch, lang, themeId, th, todayStr }) {
   );
 }
 
-export default function Settings({ data, dispatch, lang, setLang, themeId, setTheme, th, todayStr, onExport, onImport, onReset }) {
+export default function Settings({ data, dispatch, lang, setLang, themeId, setTheme, th, todayStr, onExport, onImport, onReset, onOpenGuide }) {
   const currentWeek = weekOf(todayStr, data.program, data.settings.weekStart);
   const [actualWeek, setActualWeek] = useState(currentWeek);
   const [backfill, setBackfill] = useState(false);
@@ -219,6 +219,15 @@ export default function Settings({ data, dispatch, lang, setLang, themeId, setTh
         <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={onFile}/>
         {importMsg && <p style={{ fontSize: 12, color: importMsg.ok ? accent : "#ff5252", margin: "10px 0 0", lineHeight: 1.4 }}>{importMsg.text}</p>}
         <button onClick={onReset} style={{ width: "100%", minHeight: 46, borderRadius: 10, border: "1px solid #ff525240", background: "#ff525212", color: "#ff5252", fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 14 }}>{t(lang, "resetAll")}</button>
+      </div>
+
+      {/* the explainer page */}
+      <div style={card}>
+        <button onClick={onOpenGuide} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: "transparent", border: "none", color: th.text, fontSize: 15, fontWeight: 700, cursor: "pointer", padding: 0, minHeight: 44 }}>
+          <span>{t(lang, "guideTitle")}</span>
+          <span style={{ fontSize: 13, color: accent, fontWeight: 600 }}>{t(lang, "guideOpen")} →</span>
+        </button>
+        <p style={{ fontSize: 12, color: th.textFaint, margin: "8px 0 0", lineHeight: 1.4 }}>{t(lang, "guideIntro")}</p>
       </div>
 
       {/* F.15 — where the defaults come from, so they are auditable */}
