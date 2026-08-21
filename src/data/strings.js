@@ -124,6 +124,11 @@ export const LANG = {
     setupStartDate: "When are you starting?", beforeStartTitle: "Before your programme",
     beforeStartBody: "You started on {d}, so this day isn't part of your programme — it isn't counted and you're never asked about it.",
     startHere: "Start my programme here", beforeStartLegend: "Before start",
+    planTab: "Plan", planTitle: "Your programme", planIntro: "Every workout and every exercise, as scheduled.",
+    onDay: "on {d}", notScheduled: "Not on your weekday plan", exercisesCount: "{n} exercises",
+    bestSoFar: "Best", tapForHistory: "Tap an exercise for its history",
+    dashNew: "New dashboard", dashLegacy: "Legacy dashboard",
+    repsRange: "{a}-{b} reps", stepKg: "+{n} kg steps", primary: "Primary", secondary: "Also works",
   },
   ar: {
     dir: "rtl",
@@ -239,6 +244,11 @@ export const LANG = {
     setupStartDate: "متى ستبدئين؟", beforeStartTitle: "قبل بداية برنامجك",
     beforeStartBody: "بدأتِ في {d}، لذلك هذا اليوم ليس جزءاً من برنامجك — لا يُحتسب ولا يُطلب منك.",
     startHere: "اجعلي البداية من هنا", beforeStartLegend: "قبل البداية",
+    planTab: "البرنامج", planTitle: "برنامجك", planIntro: "كل تمرين وكل حركة، كما هي مجدولة.",
+    onDay: "يوم {d}", notScheduled: "غير مجدول في خطة أسبوعك", exercisesCount: "{n} حركات",
+    bestSoFar: "الأفضل", tapForHistory: "اضغطي على أي حركة لعرض سجلها",
+    dashNew: "اللوحة الجديدة", dashLegacy: "اللوحة السابقة",
+    repsRange: "{a}-{b} تكرار", stepKg: "زيادة {n} كجم", primary: "أساسية", secondary: "تعمل أيضاً",
   },
 };
 
