@@ -11,27 +11,3 @@ export const COMPLETION_MESSAGES = [
   "اويلي على الالتزام و الصملة 😍",
   "شكلك بتكسرين أرقامك قريب 👀💪",
 ];
-
-// Daily greeting, shown once per day the first time the app is opened.
-// Windows: morning 04:00-11:59, afternoon 12:00-17:59, night 18:00-03:59.
-// Add or change lines freely — the app cycles through whatever is here.
-export const GREETINGS = {
-  morning: [
-    "Good Morning Leen☀️❤️",
-    "صباح الخير يا أحلى بنوته ☀️",
-    "Good Morning Leen ☀️ يومك حلو مثلك",
-    "صباح النشاط والقوة 💪❤️",
-  ],
-  afternoon: [
-    "Good Afternoon Leen☀️❤️",
-    "مساء الخير يا معضلتي 😍",
-    "Good Afternoon Leen ❤️ لا تنسين الماء 💧",
-    "نص اليوم راح وانتِ أحلى شي فيه 🤍",
-  ],
-  night: [
-    "Good Night Leen🌙❤️",
-    "تصبحين على خير يا قوية 🌙",
-    "Good Night Leen 🌙 ارتاحي عشان بكرة أقوى",
-    "ليلة سعيدة يا أحلى بنوته 💖",
-  ],
-};

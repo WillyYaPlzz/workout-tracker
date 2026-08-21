@@ -1,7 +1,7 @@
 // The app's state reducer — pure (no React, no storage), so behavior is unit-testable.
 // Day records are created lazily on first interaction, freezing their workoutKey.
 
-import { resolveDay, backfillCandidates, fixWeek, weekStartDate } from "./schedule";
+import { resolveDay, backfillCandidates, fixWeek } from "./schedule";
 import { swStart, swPause, swEdit } from "./timers";
 import { prefillFor, exerciseConfig, roundTo } from "./engine";
 import { defaultState } from "./storage";
@@ -87,28 +87,20 @@ function doBackfill(state, program, todayStr, now) {
 export function reducer(state, action) {
   switch (action.type) {
     case "SETUP_PROGRAM": {
-      const { weekdayMap, week, todayStr, backfill, startDate } = action;
-      const program = { anchor: { date: todayStr, week }, startDate: startDate || todayStr, weekdayMap, deloadEvery: 6 };
+      const { weekdayMap, week, todayStr, backfill } = action;
+      const program = { anchor: { date: todayStr, week }, weekdayMap, deloadEvery: 6 };
       let next = { ...state, program };
       if (backfill) next = doBackfill(next, program, todayStr, action.now);
       return next;
     }
     case "SET_WEEKDAY_MAP":
       return { ...state, program: { ...state.program, weekdayMap: action.weekdayMap } };
-    // Correcting the week changes the NUMBERING only — the start date stays put, so
-    // a correction never retroactively marks untracked weeks as missed. Ticking
-    // back-fill alongside it is the user asserting they trained those earlier days,
-    // so the start moves back to week 1 and the assumed records are written.
     case "FIX_WEEK": {
-      let program = fixWeek(state.program, action.todayStr, action.actualWeek, state.settings.weekStart);
-      if (action.backfill) program = { ...program, startDate: weekStartDate(1, program, state.settings.weekStart) };
+      const program = fixWeek(state.program, action.todayStr, action.actualWeek, state.settings.weekStart);
       let next = { ...state, program };
       if (action.backfill) next = doBackfill(next, program, action.todayStr, action.now);
       return next;
     }
-
-    case "SET_START_DATE":
-      return { ...state, program: { ...state.program, startDate: action.date } };
     case "SET_SETTING":
       return { ...state, settings: { ...state.settings, [action.key]: action.value } };
     case "TOGGLE_DELOAD": {

@@ -11,7 +11,6 @@ export default function Heatmap({ state, todayStr, th, themeId, lang, onOpenDay 
   if (weeks.length === 0) return null;
 
   const fill = cell => {
-    if (cell.isBeforeStart) return c.cellRest;
     if (cell.status === "rest") return c.cellRest;
     if (cell.isFuture) return c.cellOpen;
     return { done: c.cellDone, assumed: c.cellAssumed, partial: c.cellPartial, skipped: c.cellSkipped, open: c.cellOpen }[cell.status] || c.cellOpen;
@@ -46,17 +45,17 @@ export default function Heatmap({ state, todayStr, th, themeId, lang, onOpenDay 
             {w.week}{w.isDeload ? "•" : ""}
           </span>
           {w.cells.map(cell => (
-            <button key={cell.date} onClick={() => !cell.isBeforeStart && cell.status !== "rest" && onOpenDay(cell.date)}
-              title={cell.isBeforeStart ? `${cell.date} · ${t(lang, "beforeStartLegend")}` : `${cell.date} · ${cell.workoutKey} · ${cell.status}`}
+            <button key={cell.date} onClick={() => cell.status !== "rest" && onOpenDay(cell.date)}
+              title={`${cell.date} · ${cell.workoutKey} · ${cell.status}`}
               style={{
                 aspectRatio: "1", minHeight: 26, borderRadius: 6, cursor: cell.status === "rest" ? "default" : "pointer",
                 background: fill(cell),
-                border: cell.isToday ? `2px solid ${c.accent}` : cell.isBeforeStart ? `1px dashed ${th.border}` : cell.status === "assumed" ? `1px dashed ${c.cellDone}80` : `1px solid ${th.border}`,
+                border: cell.isToday ? `2px solid ${c.accent}` : cell.status === "assumed" ? `1px dashed ${c.cellDone}80` : `1px solid ${th.border}`,
                 color: glyphColor(cell), fontSize: cell.status === "partial" ? 12 : 11, fontWeight: 700, padding: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                opacity: cell.isFuture || cell.isBeforeStart ? 0.4 : 1,
+                opacity: cell.isFuture ? 0.45 : 1,
               }}>
-              {cell.isFuture || cell.isBeforeStart ? "" : CELL_GLYPH[cell.status] || ""}
+              {cell.isFuture ? "" : CELL_GLYPH[cell.status] || ""}
             </button>
           ))}
         </div>
@@ -72,10 +71,6 @@ export default function Heatmap({ state, todayStr, th, themeId, lang, onOpenDay 
             {label}
           </span>
         ))}
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: th.textFaint }}>
-          <span style={{ width: 14, height: 14, borderRadius: 4, background: c.cellRest, border: `1px dashed ${th.border}`, opacity: 0.4 }}/>
-          {t(lang, "beforeStartLegend")}
-        </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: c.deload }}>• {t(lang, "deloadWeek")}</span>
       </div>
     </div>

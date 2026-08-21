@@ -10,7 +10,7 @@ export function PixelHeart() {
   );
 }
 
-export function Popup({ message, onClose, lang, dir = "rtl" }) {
+export function Popup({ message, onClose, lang }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", padding: 20 }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: "#ffb6c1", border: "3px solid #880055", borderRadius: 4, maxWidth: 320, width: "100%", boxShadow: "6px 6px 0 #880055" }}>
@@ -22,7 +22,7 @@ export function Popup({ message, onClose, lang, dir = "rtl" }) {
         </div>
         <div style={{ padding: "28px 24px 24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
           <PixelHeart/>
-          <p style={{ fontSize: 20, fontWeight: 700, color: "#880055", marginTop: 20, marginBottom: 24, lineHeight: 1.4, direction: dir }}>{message}</p>
+          <p style={{ fontSize: 20, fontWeight: 700, color: "#880055", marginTop: 20, marginBottom: 24, lineHeight: 1.4, direction: "rtl" }}>{message}</p>
           <button onClick={onClose} style={{ background: "#fff", color: "#880055", border: "2px solid #880055", borderRadius: 2, padding: "8px 40px", fontSize: 15, fontWeight: 700, cursor: "pointer", boxShadow: "3px 3px 0 #880055" }}>{LANG[lang].ok}</button>
         </div>
       </div>

@@ -1,16 +1,8 @@
 // Schedule resolution: which week and which workout a given date maps to.
-// program = { anchor: {date, week}, startDate, weekdayMap: {0.."REST"|"UB1"|...}, deloadEvery: 6 }
+// program = { anchor: {date, week}, weekdayMap: {0.."REST"|"UB1"|...}, deloadEvery: 6 }
 // weeks   = sparse per-week overrides: { [week]: { deloadOverride, swaps: [[wdA,wdB]], ... } }
 
 import { addDays, daysBetween, weekdayOf } from "./dates";
-
-// The day the programme actually began. Dates before it are not part of the
-// programme: not scheduled, not counted, never nagged about. Older saved
-// programmes have no startDate, so the anchor date (the day setup ran) stands in
-// — which is exactly the day those users began.
-export function programStart(program) {
-  return program?.startDate ?? program?.anchor?.date ?? null;
-}
 
 // Start (weekStart weekday, default Monday=1) of the week containing dateStr.
 export function weekStartOf(dateStr, weekStart = 1) {
@@ -53,16 +45,12 @@ export function resolveDay(dateStr, program, weeks, weekStart = 1) {
   const week = weekOf(dateStr, program, weekStart);
   const weekday = weekdayOf(dateStr);
   const effWeekday = applySwaps(weekday, weeks?.[week]?.swaps);
-  const began = programStart(program);
   return {
     week,
     weekday,
     workoutKey: program.weekdayMap[effWeekday] || "REST",
     isDeload: isDeloadWeek(week, program, weeks),
     swapped: effWeekday !== weekday,
-    // Reported, not enforced: reducer.withDay freezes workoutKey onto new day
-    // records, so forcing REST here would make a pre-start day un-loggable.
-    beforeStart: !!began && dateStr < began,
   };
 }
 
@@ -76,11 +64,8 @@ export function fixWeek(program, todayStr, actualWeek, weekStart = 1) {
 // no record yet — candidates for "assumed done" back-fill. Bounded to maxDays back.
 export function backfillCandidates(todayStr, program, weeks, days, weekStart = 1, maxDays = 366) {
   const out = [];
-  const began = programStart(program);
-  let start = weekStartDate(1, program, weekStart);
-  if (began && began > start) start = began;      // never back-fill before the start
+  const start = weekStartDate(1, program, weekStart);
   let d = daysBetween(start, todayStr) > maxDays ? addDays(todayStr, -maxDays) : start;
-  if (began && d < began) d = began;
   while (d < todayStr) {
     const r = resolveDay(d, program, weeks, weekStart);
     if (r.week >= 1 && r.workoutKey !== "REST" && !days[d]) out.push(d);
@@ -92,9 +77,7 @@ export function backfillCandidates(todayStr, program, weeks, days, weekStart = 1
 // Earliest past scheduled workout day (within lookbackDays) with no closed record —
 // used by the behind-schedule banner. dayStatusFn(dateStr) → derived status string.
 export function firstOpenDay(todayStr, program, weeks, dayStatusFn, weekStart = 1, lookbackDays = 28) {
-  const began = programStart(program);
   let d = addDays(todayStr, -lookbackDays);
-  if (began && d < began) d = began;              // days before the start were never owed
   while (d < todayStr) {
     const r = resolveDay(d, program, weeks, weekStart);
     if (r.week >= 1 && r.workoutKey !== "REST") {

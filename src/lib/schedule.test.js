@@ -1,16 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { weekStartOf, weekOf, weekStartDate, isDeloadWeek, resolveDay, fixWeek, backfillCandidates, firstOpenDay, validateWeekdayMap, programStart } from "./schedule";
+import { weekStartOf, weekOf, weekStartDate, isDeloadWeek, resolveDay, fixWeek, backfillCandidates, firstOpenDay, validateWeekdayMap } from "./schedule";
 
 // Anchor: 2026-08-21 (a Friday) is in week 3. Weeks start Monday.
 const program = {
   anchor: { date: "2026-08-21", week: 3 },
-  startDate: "2026-08-03",   // the Monday of week 1 — this user has been going since then
   weekdayMap: { 0: "REST", 1: "UB1", 2: "LB1", 3: "REST", 4: "UB2", 5: "LB2", 6: "REST" },
   deloadEvery: 6,
 };
-
-// The same programme set up by someone who only started TODAY (Friday, week 3).
-const startedToday = { ...program, startDate: "2026-08-21" };
 
 describe("week math", () => {
   it("weekStartOf returns the Monday of the week", () => {
@@ -90,36 +86,6 @@ describe("backfillCandidates", () => {
   it("skips days that already have records", () => {
     const out = backfillCandidates("2026-08-21", program, {}, { "2026-08-20": { workoutKey: "UB2" } });
     expect(out).not.toContain("2026-08-20");
-  });
-});
-
-describe("programme start date", () => {
-  it("nothing is back-filled from before the start", () => {
-    expect(backfillCandidates("2026-08-21", startedToday, {}, {})).toEqual([]);
-  });
-  it("back-fill starts at the start date, not the Monday of week 1", () => {
-    const midWeek = { ...program, startDate: "2026-08-05" };  // began Wednesday of week 1
-    const out = backfillCandidates("2026-08-21", midWeek, {}, {});
-    expect(out).not.toContain("2026-08-03");   // Monday, before the start
-    expect(out).not.toContain("2026-08-04");   // Tuesday, before the start
-    expect(out[0]).toBe("2026-08-06");         // Thursday, the first scheduled day after it
-  });
-  it("the behind-schedule banner never points before the start", () => {
-    // every day open, but the user only started today
-    expect(firstOpenDay("2026-08-21", startedToday, {}, () => "open")).toBe(null);
-    // ...whereas a user who started earlier IS behind
-    expect(firstOpenDay("2026-08-21", program, {}, () => "open")).toBe("2026-08-03");
-  });
-  it("resolveDay reports the boundary without changing the workout", () => {
-    const before = resolveDay("2026-08-17", startedToday, {});
-    expect(before.beforeStart).toBe(true);
-    expect(before.workoutKey).toBe("UB1");     // still reported, so a logged day keeps its identity
-    expect(resolveDay("2026-08-21", startedToday, {}).beforeStart).toBe(false);
-  });
-  it("falls back to the anchor date for programmes saved before this field existed", () => {
-    const legacy = { anchor: { date: "2026-08-21", week: 3 }, weekdayMap: program.weekdayMap, deloadEvery: 6 };
-    expect(programStart(legacy)).toBe("2026-08-21");
-    expect(firstOpenDay("2026-08-21", legacy, {}, () => "open")).toBe(null);
   });
 });
 

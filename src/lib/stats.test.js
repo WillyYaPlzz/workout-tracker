@@ -5,7 +5,6 @@ import { WORKOUTS } from "../data/workouts";
 
 const program = {
   anchor: { date: "2026-08-21", week: 3 },
-  startDate: "2026-08-17",   // began on the Monday of week 3
   weekdayMap: { 0: "REST", 1: "UB1", 2: "LB1", 3: "REST", 4: "UB2", 5: "LB2", 6: "REST" },
   deloadEvery: 6,
 };
@@ -181,73 +180,5 @@ describe("backup import", () => {
     expect(importPayload("not json", base()).ok).toBe(false);
     expect(importPayload('{"hello":1}', base())).toMatchObject({ ok: false, error: "not-a-backup" });
     expect(importPayload(JSON.stringify({ app: "workout-tracker", state: { schemaVersion: 2, days: {} } }), base()).ok).toBe(true);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// The programme start date — the fix for being nagged about days before you began
-// ---------------------------------------------------------------------------
-describe("programme start date", () => {
-  // The reported bug: set up on Friday 21/8 as week 1. Monday/Tuesday/Thursday of
-  // that same calendar week also resolve to week 1, and used to be treated as owed.
-  const startedFriday = {
-    anchor: { date: "2026-08-21", week: 1 },
-    startDate: "2026-08-21",
-    weekdayMap: { 0: "REST", 1: "UB1", 2: "LB1", 3: "REST", 4: "UB2", 5: "LB2", 6: "REST" },
-    deloadEvery: 6,
-  };
-  function friday() { const s = defaultState(); s.program = startedFriday; return s; }
-
-  it("days before the start are not counted as missed", () => {
-    const s = friday();
-    expect(adherence(s, "2026-08-21")).toMatchObject({ scheduled: 0, done: 0, pct: null });
-    // today itself is scheduled and still open — the earlier days simply do not exist
-    expect(overallCompletion(s, "2026-08-21")).toMatchObject({ total: 1, closed: 0 });
-  });
-  it("only days from the start count once training begins", () => {
-    let s = friday();
-    s = done(s, "2026-08-21", "LB2");
-    // Monday 24/8 is the next scheduled day; on Tuesday 25/8 only those two are owed
-    s = done(s, "2026-08-24", "UB1");
-    const a = adherence(s, "2026-08-25");
-    expect(a.scheduled).toBe(2);
-    expect(a.done).toBe(2);
-    expect(a.pct).toBe(100);
-  });
-  it("a mid-week starter can still complete their first week", () => {
-    let s = friday();
-    s = done(s, "2026-08-21", "LB2");   // the only in-programme day of that week
-    expect(weeksDone(s, "2026-08-23")).toBe(1);
-  });
-  it("weeks entirely before the start are not counted as done", () => {
-    const s = friday();
-    expect(weeksDone(s, "2026-08-23")).toBe(0);
-  });
-  it("the streak ends at the start date instead of being broken by it", () => {
-    let s = friday();
-    s = done(s, "2026-08-21", "LB2");
-    expect(streak(s, "2026-08-21")).toBe(1);
-  });
-  it("the heatmap flags pre-start cells and starts at the start week", () => {
-    const s = friday();
-    const { weeks } = heatmap(s, "2026-08-21");
-    expect(weeks[0].week).toBe(1);
-    const cells = weeks[0].cells;
-    expect(cells[0]).toMatchObject({ date: "2026-08-17", isBeforeStart: true });
-    expect(cells.find(c => c.date === "2026-08-21")).toMatchObject({ isBeforeStart: false, isToday: true });
-  });
-  it("a back-filled day earlier than the stored start still counts", () => {
-    let s = friday();
-    s = done(s, "2026-08-17", "UB1", { status: "assumed" });   // retro-logged
-    expect(adherence(s, "2026-08-21").scheduled).toBeGreaterThan(0);
-    expect(adherence(s, "2026-08-21").done).toBe(1);
-  });
-  it("programmes saved before this field existed fall back to the anchor date", () => {
-    const legacy = { ...startedFriday };
-    delete legacy.startDate;
-    const s = defaultState();
-    s.program = legacy;
-    // anchor.date is the day setup ran, so the same protection applies
-    expect(adherence(s, "2026-08-21").scheduled).toBe(0);
   });
 });

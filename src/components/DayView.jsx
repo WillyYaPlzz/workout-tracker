@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { WORKOUTS, WARMUP, COOLDOWN, getExercise } from "../data/workouts";
 import { COMPLETION_MESSAGES } from "../data/messages";
-import { t, fill } from "../data/strings";
+import { t } from "../data/strings";
 import { wkColor, isLightTheme } from "../data/themes";
 import { addDays } from "../lib/dates";
-import { resolveDay, firstOpenDay, programStart } from "../lib/schedule";
+import { resolveDay, firstOpenDay } from "../lib/schedule";
 import { dayStatus, exerciseDone } from "../lib/completion";
 import { restSecFor } from "../lib/reducer";
 import { swElapsed, fmtElapsed, parseElapsed } from "../lib/timers";
@@ -84,8 +84,6 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
   const isToday = selectedDate === todayStr;
   const dayClosed = status === "done" || status === "skipped" || status === "assumed";
   const fatigue = data.weeks[slot.week]?.fatigue ?? null;
-  // Days before the programme began are shown, but they are not part of it.
-  const beforeStart = slot.beforeStart && !day;
 
   const statusFn = d => dayStatus(data.days[d], (WORKOUTS[data.days[d]?.workoutKey ?? resolveDay(d, data.program, data.weeks, weekStart).workoutKey]?.exercises || []).map(e => e.id));
   const behindDay = firstOpenDay(todayStr, data.program, data.weeks, statusFn, weekStart);
@@ -214,7 +212,7 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
       )}
 
       {/* week tools */}
-      <div style={{ display: beforeStart ? "none" : "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
         <button onClick={() => dispatch({ type: "TOGGLE_DELOAD", week: slot.week, isDeloadNow: slot.isDeload })} style={{ background: slot.isDeload ? "#b388ff20" : th.card, color: slot.isDeload ? "#b388ff" : th.textMuted, border: `1px solid ${slot.isDeload ? "#b388ff40" : th.border}`, borderRadius: 8, padding: "6px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
           {slot.isDeload ? t(lang, "makeNormal") : t(lang, "makeDeload")}
         </button>
@@ -239,14 +237,7 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
         </div>
       )}
 
-      {beforeStart ? (
-        <div style={{ background: th.card, borderRadius: 12, padding: 28, marginBottom: 12, border: `1px solid ${th.border}`, textAlign: "center" }}>
-          <div style={{ fontSize: 30 }}>📅</div>
-          <h2 style={{ margin: "10px 0 6px", fontSize: 17, fontWeight: 700, color: th.text }}>{t(lang, "beforeStartTitle")}</h2>
-          <p style={{ margin: "0 0 16px", fontSize: 13, color: th.textMuted, lineHeight: 1.5 }}>{fill(lang, "beforeStartBody", { d: programStart(data.program) })}</p>
-          <button onClick={() => dispatch({ type: "SET_START_DATE", date: selectedDate })} style={{ background: color + "20", color, border: `1px solid ${color}45`, borderRadius: 10, padding: "11px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44 }}>{t(lang, "startHere")}</button>
-        </div>
-      ) : isRest ? (
+      {isRest ? (
         <div style={{ background: th.card, borderRadius: 12, padding: 32, marginBottom: 12, border: `1px solid ${th.border}`, textAlign: "center" }}>
           <div style={{ fontSize: 34 }}>🌙</div>
           <h2 style={{ margin: "10px 0 4px", fontSize: 18, fontWeight: 700, color: th.text }}>{t(lang, "restDay")}</h2>

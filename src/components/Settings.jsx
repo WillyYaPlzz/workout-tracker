@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { WORKOUTS, WORKOUT_KEYS, REST } from "../data/workouts";
 import { t, fill } from "../data/strings";
 import { THEMES, wkColor, isLightTheme } from "../data/themes";
-import { validateWeekdayMap, weekOf, programStart } from "../lib/schedule";
+import { validateWeekdayMap, weekOf } from "../lib/schedule";
 import { storageBytes, exportPayload, importPayload, defaultState } from "../lib/storage";
 
 export function WeekdayMapEditor({ map, onChange, lang, themeId, th }) {
@@ -35,7 +35,6 @@ export function WeekdayMapEditor({ map, onChange, lang, themeId, th }) {
 export function Setup({ dispatch, lang, themeId, th, todayStr }) {
   const [map, setMap] = useState({ 0: REST, 1: "UB1", 2: "LB1", 3: REST, 4: "UB2", 5: "LB2", 6: REST });
   const [week, setWeek] = useState(1);
-  const [startDate, setStartDate] = useState(todayStr);
   const [backfill, setBackfill] = useState(false);
   const isLight = isLightTheme(themeId);
   const iBg = isLight ? "#f0e8ed" : th.bg;
@@ -51,24 +50,19 @@ export function Setup({ dispatch, lang, themeId, th, todayStr }) {
           <label style={{ fontSize: 13, color: th.textMuted, display: "block", marginBottom: 6 }}>{t(lang, "setupWeek")}</label>
           <input type="number" min="1" value={week} onChange={e => setWeek(Math.max(1, parseInt(e.target.value) || 1))} style={{ width: 90, background: iBg, color: th.text, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "9px 10px", fontSize: 15, outline: "none" }}/>
         </div>
-        <div style={{ marginTop: 16 }}>
-          <label style={{ fontSize: 13, color: th.textMuted, display: "block", marginBottom: 6 }}>{t(lang, "setupStartDate")}</label>
-          <input type="date" value={startDate} max={todayStr} onChange={e => setStartDate(e.target.value || todayStr)} style={{ background: iBg, color: th.text, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "9px 10px", fontSize: 15, outline: "none", minHeight: 44 }}/>
-          <p style={{ fontSize: 11, color: th.textFaint, margin: "6px 0 0", lineHeight: 1.4 }}>{t(lang, "startDateHint")}</p>
-        </div>
-        {startDate < todayStr && (
+        {week > 1 && (
           <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, color: th.textMuted, cursor: "pointer" }}>
             <input type="checkbox" checked={backfill} onChange={e => setBackfill(e.target.checked)} style={{ width: 18, height: 18 }}/>
             {t(lang, "setupBackfill")}
           </label>
         )}
-        <button disabled={!valid} onClick={() => dispatch({ type: "SETUP_PROGRAM", weekdayMap: map, week, todayStr, startDate, backfill, now: Date.now() })} style={{ width: "100%", marginTop: 18, padding: "14px 0", background: valid ? accent : th.border, color: isLight ? "#fff" : th.bg, border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: valid ? "pointer" : "default" }}>{t(lang, "setupStart")}</button>
+        <button disabled={!valid} onClick={() => dispatch({ type: "SETUP_PROGRAM", weekdayMap: map, week, todayStr, backfill, now: Date.now() })} style={{ width: "100%", marginTop: 18, padding: "14px 0", background: valid ? accent : th.border, color: isLight ? "#fff" : th.bg, border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: valid ? "pointer" : "default" }}>{t(lang, "setupStart")}</button>
       </div>
     </div>
   );
 }
 
-export default function Settings({ data, dispatch, lang, setLang, themeId, setTheme, th, todayStr, onExport, onImport, onReset, onOpenGuide }) {
+export default function Settings({ data, dispatch, lang, setLang, themeId, setTheme, th, todayStr, onExport, onImport, onReset }) {
   const currentWeek = weekOf(todayStr, data.program, data.settings.weekStart);
   const [actualWeek, setActualWeek] = useState(currentWeek);
   const [backfill, setBackfill] = useState(false);
@@ -183,14 +177,6 @@ export default function Settings({ data, dispatch, lang, setLang, themeId, setTh
           <input type="checkbox" checked={backfill} onChange={e => setBackfill(e.target.checked)} style={{ width: 18, height: 18 }}/>
           {t(lang, "backfillFix")}
         </label>
-
-        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${th.border}` }}>
-          <label style={{ fontSize: 13, color: th.textMuted, display: "block", marginBottom: 6 }}>{t(lang, "startDateLabel")}</label>
-          <input type="date" value={programStart(data.program) || todayStr} max={todayStr}
-            onChange={e => e.target.value && dispatch({ type: "SET_START_DATE", date: e.target.value })}
-            style={{ background: iBg, color: th.text, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "9px 10px", fontSize: 14, outline: "none", minHeight: 44 }}/>
-          <p style={{ fontSize: 11, color: th.textFaint, margin: "6px 0 0", lineHeight: 1.4 }}>{t(lang, "startDateHint")}</p>
-        </div>
       </div>
 
       {/* recovery advice text used when fatigue is low */}
@@ -219,15 +205,6 @@ export default function Settings({ data, dispatch, lang, setLang, themeId, setTh
         <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={onFile}/>
         {importMsg && <p style={{ fontSize: 12, color: importMsg.ok ? accent : "#ff5252", margin: "10px 0 0", lineHeight: 1.4 }}>{importMsg.text}</p>}
         <button onClick={onReset} style={{ width: "100%", minHeight: 46, borderRadius: 10, border: "1px solid #ff525240", background: "#ff525212", color: "#ff5252", fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 14 }}>{t(lang, "resetAll")}</button>
-      </div>
-
-      {/* the explainer page */}
-      <div style={card}>
-        <button onClick={onOpenGuide} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: "transparent", border: "none", color: th.text, fontSize: 15, fontWeight: 700, cursor: "pointer", padding: 0, minHeight: 44 }}>
-          <span>{t(lang, "guideTitle")}</span>
-          <span style={{ fontSize: 13, color: accent, fontWeight: 600 }}>{t(lang, "guideOpen")} →</span>
-        </button>
-        <p style={{ fontSize: 12, color: th.textFaint, margin: "8px 0 0", lineHeight: 1.4 }}>{t(lang, "guideIntro")}</p>
       </div>
 
       {/* F.15 — where the defaults come from, so they are auditable */}
