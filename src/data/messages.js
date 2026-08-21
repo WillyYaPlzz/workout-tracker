@@ -9,7 +9,7 @@ export const COMPLETION_MESSAGES = [
   "واو يا قوية 🔥",
   "عسل ومعضلة بعد 😌❤️",
   "اويلي على الالتزام و الصملة 😍",
-  "شكلك بتكسرين أرقامك قريب 👀💪",
+  //"شكلك بتكسرين أرقامك قريب 👀💪",
 ];
 
 // Daily greeting, shown once per day the first time the app is opened.
@@ -20,17 +20,17 @@ export const GREETINGS = {
     "Good Morning Leen☀️❤️",
     "صباح الخير يا أحلى بنوته ☀️",
     "Good Morning Leen ☀️ يومك حلو مثلك",
-    "صباح النشاط والقوة 💪❤️",
+    "صباح النشاط والحيوية ❤️",
   ],
   afternoon: [
     "Good Afternoon Leen☀️❤️",
     "مساء الخير يا معضلتي 😍",
-    "Good Afternoon Leen ❤️ لا تنسين الماء 💧",
+    "Good Afternoon Leen ❤️ لا تنسين الموية 💧",
     "نص اليوم راح وانتِ أحلى شي فيه 🤍",
   ],
   night: [
     "Good Night Leen🌙❤️",
-    "تصبحين على خير يا قوية 🌙",
+    "تصبحين على خير يا المعضلة 🌙",
     "Good Night Leen 🌙 ارتاحي عشان بكرة أقوى",
     "ليلة سعيدة يا أحلى بنوته 💖",
   ],
