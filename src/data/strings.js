@@ -120,6 +120,10 @@ export const LANG = {
     infoGuard: "The 10% load-jump guard and the ~10% deload are conventional coaching practice, not a hard research finding.",
     infoGuardNote: "Labelled as convention, not evidence.",
     offlineReady: "Works offline",
+    startDateLabel: "Programme start date", startDateHint: "Days before this are not part of your programme",
+    setupStartDate: "When are you starting?", beforeStartTitle: "Before your programme",
+    beforeStartBody: "You started on {d}, so this day isn't part of your programme — it isn't counted and you're never asked about it.",
+    startHere: "Start my programme here", beforeStartLegend: "Before start",
   },
   ar: {
     dir: "rtl",
@@ -231,6 +235,10 @@ export const LANG = {
     infoGuard: "حد قفزة الوزن ١٠٪ والديلود ١٠٪ عُرف تدريبي شائع وليس نتيجة بحثية قاطعة.",
     infoGuardNote: "مذكور كعُرف لا كدليل.",
     offlineReady: "يعمل بدون إنترنت",
+    startDateLabel: "تاريخ بداية البرنامج", startDateHint: "الأيام قبل هذا التاريخ ليست جزءاً من برنامجك",
+    setupStartDate: "متى ستبدئين؟", beforeStartTitle: "قبل بداية برنامجك",
+    beforeStartBody: "بدأتِ في {d}، لذلك هذا اليوم ليس جزءاً من برنامجك — لا يُحتسب ولا يُطلب منك.",
+    startHere: "اجعلي البداية من هنا", beforeStartLegend: "قبل البداية",
   },
 };
 

@@ -6,7 +6,7 @@
 //   - skipped days count as scheduled-but-not-done.
 
 import { addDays, daysBetween } from "./dates";
-import { resolveDay, weekOf, weekStartDate, isDeloadWeek } from "./schedule";
+import { resolveDay, weekOf, weekStartDate, isDeloadWeek, programStart } from "./schedule";
 import { dayStatus, slotClosed } from "./completion";
 import { WORKOUTS } from "../data/workouts";
 import { sessionSets, weekSets } from "./volume";
@@ -31,15 +31,21 @@ export function currentWeek(state, todayStr) {
 // would report a number that is simply false. Back-filling extends this window
 // backwards on purpose, which is exactly what the "assumed done" option is for.
 export function trackingStart(state, todayStr) {
+  const began = programStart(state.program);
   const dates = Object.keys(state.days || {});
-  if (dates.length === 0) return todayStr;
-  return dates.reduce((min, d) => (d < min ? d : min), dates[0]);
+  const earliest = dates.length ? dates.reduce((min, d) => (d < min ? d : min), dates[0]) : null;
+  if (!earliest) return began || todayStr;
+  // A back-filled record can legitimately predate the stored start date; take the
+  // earlier of the two so retro-logged work still counts.
+  return began && began < earliest ? began : earliest;
 }
 
 // Every date from the start of tracking up to `todayStr`, oldest first.
 export function scheduledDates(state, todayStr, from = null) {
   if (!state.program) return [];
-  const start = from || trackingStart(state, todayStr);
+  const floor = trackingStart(state, todayStr);
+  let start = from || floor;
+  if (start < floor) start = floor;   // an explicit `from` cannot reach before tracking began
   if (daysBetween(start, todayStr) < 0) return [];
   const out = [];
   let d = start;
@@ -50,10 +56,12 @@ export function scheduledDates(state, todayStr, from = null) {
 // D — day streak. Counts back from today over workout days; rest days are
 // skipped, and an unfinished TODAY does not break a streak that is still alive.
 export function streak(state, todayStr) {
+  const began = programStart(state.program);
   let n = 0;
   let d = todayStr;
   let first = true;
   for (let guard = 0; guard < 1000; guard++) {
+    if (began && d < began) break;   // reached the start: the streak ends, it is not broken
     const { status } = statusOf(state, d);
     if (status === "rest") { d = addDays(d, -1); first = false; continue; }
     if (status === "done" || status === "assumed") n++;
@@ -81,17 +89,22 @@ export function adherence(state, todayStr) {
 // D — a week is done when all seven slots are closed (rest days count as closed).
 export function weeksDone(state, todayStr) {
   const weekStart = state.settings?.weekStart ?? 1;
+  const began = programStart(state.program);
   const cur = currentWeek(state, todayStr);
+  const firstWeek = began ? Math.max(1, weekOf(began, state.program, weekStart)) : 1;
   let n = 0;
-  for (let w = 1; w <= cur; w++) {
+  for (let w = firstWeek; w <= cur; w++) {
     const start = weekStartDate(w, state.program, weekStart);
-    let all = true;
+    let all = true, slots = 0;
     for (let i = 0; i < 7; i++) {
       const d = addDays(start, i);
+      if (began && d < began) continue;   // outside the programme; not an owed slot
+      slots++;
       const { status } = statusOf(state, d);
       if (!slotClosed(status, status === "rest")) { all = false; break; }
     }
-    if (all) n++;
+    // a week with no in-programme days is not a completed week
+    if (all && slots > 0) n++;
   }
   return n;
 }
@@ -128,7 +141,9 @@ export function heatmap(state, todayStr, maxWeeks = 16) {
     const w = weekOf(d, state.program, weekStart);
     return w < min ? w : min;
   }, cur);
-  const from = Math.max(1, Math.min(earliest, cur - maxWeeks + 1));
+  const began = programStart(state.program);
+  const startWeek = began ? weekOf(began, state.program, weekStart) : 1;
+  const from = Math.max(1, startWeek, Math.min(earliest, cur - maxWeeks + 1));
   const weeks = [];
   for (let w = from; w <= cur; w++) {
     const start = weekStartDate(w, state.program, weekStart);
@@ -140,6 +155,7 @@ export function heatmap(state, todayStr, maxWeeks = 16) {
         date, workoutKey: key, status,
         isToday: date === todayStr,
         isFuture: date > todayStr,
+        isBeforeStart: !!began && date < began,
       });
     }
     weeks.push({ week: w, isDeload: isDeloadWeek(w, state.program, state.weeks), cells });
@@ -159,8 +175,10 @@ export function durationSeries(state) {
 // D — sets completed per week.
 export function setsPerWeekSeries(state, todayStr, weeksBack = 12) {
   const cur = currentWeek(state, todayStr);
+  const began = programStart(state.program);
+  const startWeek = began ? weekOf(began, state.program, state.settings?.weekStart ?? 1) : 1;
   const out = [];
-  for (let w = Math.max(1, cur - weeksBack + 1); w <= cur; w++) out.push({ week: w, label: `W${w}`, sets: weekSets(state, w) });
+  for (let w = Math.max(1, startWeek, cur - weeksBack + 1); w <= cur; w++) out.push({ week: w, label: `W${w}`, sets: weekSets(state, w) });
   return out;
 }
 
