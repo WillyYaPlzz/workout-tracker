@@ -33,6 +33,15 @@ export const LANG = {
     backfillFix: "Back-fill earlier days as done", cancel: "Cancel", save: "Save",
     language: "Language", theme: "Theme",
     dangerZone: "Data", currentWeekIs: "The app thinks this is week",
+    // session (Phase 2)
+    tickAll: "✓ All", addWarmupSet: "+ Warm-up set", wu: "WU",
+    startSession: "Start", pause: "Pause", resume: "Resume", sessionTime: "Session",
+    restLabel: "Rest", skip: "Skip",
+    summaryTitle: "Session Summary", duration: "Duration", setsDone: "Sets done",
+    dayNotePlaceholder: "Note for this day...", close: "Close",
+    editTimePrompt: "Session time (mm:ss)",
+    soundOn: "Timer sound", autoRest: "Auto rest timer", keepAwake: "Keep screen awake",
+    timersSection: "Session & timers",
   },
   ar: {
     dir: "rtl",
@@ -62,6 +71,14 @@ export const LANG = {
     backfillFix: "اعتبري الأيام السابقة منجزة", cancel: "إلغاء", save: "حفظ",
     language: "اللغة", theme: "المظهر",
     dangerZone: "البيانات", currentWeekIs: "التطبيق يعتبر هذا الأسبوع",
+    tickAll: "✓ الكل", addWarmupSet: "+ جولة إحماء", wu: "إحماء",
+    startSession: "ابدئي", pause: "إيقاف", resume: "استئناف", sessionTime: "الجلسة",
+    restLabel: "راحة", skip: "تخطي",
+    summaryTitle: "ملخص الجلسة", duration: "المدة", setsDone: "الجولات المنجزة",
+    dayNotePlaceholder: "ملاحظة لهذا اليوم...", close: "إغلاق",
+    editTimePrompt: "وقت الجلسة (دقيقة:ثانية)",
+    soundOn: "صوت المؤقت", autoRest: "مؤقت الراحة التلقائي", keepAwake: "إبقاء الشاشة مضاءة",
+    timersSection: "الجلسة والمؤقتات",
   },
 };
 

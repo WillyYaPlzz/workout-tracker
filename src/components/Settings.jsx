@@ -91,6 +91,17 @@ export default function Settings({ data, dispatch, lang, themeId, th, todayStr }
         </div>
       </div>
 
+      {/* session & timers */}
+      <div style={card}>
+        <h3 style={h}>{t(lang, "timersSection")}</h3>
+        {[["sound", "soundOn"], ["autoRest", "autoRest"], ["wakeLock", "keepAwake"]].map(([key, label]) => (
+          <label key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", fontSize: 14, color: th.text, cursor: "pointer", borderBottom: key !== "wakeLock" ? `1px solid ${th.border}` : "none" }}>
+            {t(lang, label)}
+            <input type="checkbox" checked={!!data.settings[key]} onChange={e => dispatch({ type: "SET_SETTING", key, value: e.target.checked })} style={{ width: 20, height: 20 }}/>
+          </label>
+        ))}
+      </div>
+
       {/* wrong week fix */}
       <div style={card}>
         <h3 style={h}>{t(lang, "fixWeekTitle")}</h3>
