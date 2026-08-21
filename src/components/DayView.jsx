@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { WORKOUTS, WARMUP, COOLDOWN, getExercise } from "../data/workouts";
 import { COMPLETION_MESSAGES } from "../data/messages";
-import { t, fill } from "../data/strings";
+import { t } from "../data/strings";
 import { wkColor, isLightTheme } from "../data/themes";
 import { addDays } from "../lib/dates";
 import { resolveDay, firstOpenDay } from "../lib/schedule";

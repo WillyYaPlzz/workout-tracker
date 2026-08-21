@@ -78,33 +78,52 @@ function round2(v) { return Math.round(v * 100) / 100; }
 
 // ------------------------------------------------------------------ sessions
 
-// Every logged session of one exercise, oldest first, annotated with everything
-// the engine's gates need. Assumed-done days never produce a session (F: they
-// contribute nothing to any chart or figure).
-export function exerciseSessions(state, exId) {
+// Every logged session, bucketed by exercise, oldest first, annotated with
+// everything the engine's gates need. Assumed-done and skipped days never
+// produce a session (they contribute nothing to any chart or figure).
+//
+// Two layers of memoisation keep this cheap as history grows. Sessions are
+// cached per DAY RECORD in a WeakMap, so editing today re-derives one day and
+// reuses every other; the bucketed index is cached on the identity of the state
+// slices it reads. The reducer replaces all of these immutably, so a stale
+// result is impossible. Without this, a day screen rescanned the whole history
+// once per exercise on every keystroke.
+const dayCache = new WeakMap();
+let ctxKey = null;
+let ctxGen = 0;
+let indexKey = null;
+let indexValue = null;
+
+function contextGeneration(state) {
+  const key = [state.program, state.weeks, state.settings, state.exercises];
+  if (!ctxKey || !key.every((v, i) => v === ctxKey[i])) {
+    ctxKey = key;
+    ctxGen++;
+  }
+  return ctxGen;
+}
+
+function computeDaySessions(state, date, day) {
   const out = [];
-  const prescribed = prescribedReps(state, exId);
   const weekStart = state.settings?.weekStart ?? 1;
-  for (const [date, day] of Object.entries(state.days || {})) {
-    if (!day || day.status === "assumed" || day.status === "skipped") continue;
-    const dEx = day.exercises?.[exId];
-    if (!dEx) continue;
+  const week = state.program ? weekOf(date, state.program, weekStart) : null;
+  const deload = state.program && week != null ? isDeloadWeek(week, state.program, state.weeks) : false;
+  for (const [exId, dEx] of Object.entries(day.exercises || {})) {
     const work = workingSets(dEx);
     const done = work.filter(s => s.done);
     if (done.length === 0) continue;
 
+    const p = prescribedReps(state, exId);
     const weighted = done.filter(s => setWeight(s) > 0);
     const rirs = done.map(s => s.rir).filter(r => r != null && r !== "");
-    const week = state.program ? weekOf(date, state.program, weekStart) : null;
     let best = null;
     for (const s of weighted) {
-      const w = setWeight(s), reps = effectiveReps(s, prescribed), lr = w * reps;
+      const w = setWeight(s), reps = effectiveReps(s, p), lr = w * reps;
       if (!best || lr > best.loadReps || (lr === best.loadReps && w > best.weight))
         best = { weight: w, reps, loadReps: lr, rir: s.rir ?? null };
     }
-    out.push({
-      date, week,
-      isDeload: state.program && week != null ? isDeloadWeek(week, state.program, state.weeks) : false,
+    out.push([exId, {
+      date, week, isDeload: deload,
       comparable: isComparable(dEx),
       substitution: dEx.substitution || "",
       totalSets: work.length,
@@ -112,7 +131,7 @@ export function exerciseSessions(state, exId) {
       partial: done.length < work.length,          // C — "WS 1/2" honesty
       sets: done,
       warmups: warmupSets(dEx),
-      weightedSets: weighted.map(s => ({ weight: setWeight(s), reps: effectiveReps(s, prescribed), rir: s.rir ?? null })),
+      weightedSets: weighted.map(s => ({ weight: setWeight(s), reps: effectiveReps(s, p), rir: s.rir ?? null })),
       topWeight: weighted.length ? Math.max(...weighted.map(setWeight)) : 0,
       bestSet: best,
       bestLoadReps: best ? best.loadReps : 0,
@@ -121,9 +140,38 @@ export function exerciseSessions(state, exId) {
       jumpConfirmedAt: dEx.jumpConfirmedAt ?? null,
       equipment: dEx.equipment ?? 0,
       notes: dEx.notes || "",
-    });
+    }]);
   }
-  return out.sort((a, b) => (a.date < b.date ? -1 : 1));
+  return out;
+}
+
+function sessionIndex(state) {
+  const key = [state.days, state.weeks, state.program, state.exercises, state.settings];
+  if (indexKey && key.every((v, i) => v === indexKey[i])) return indexValue;
+
+  const gen = contextGeneration(state);
+  const index = new Map();
+  const dates = Object.keys(state.days || {}).sort();
+  for (const date of dates) {
+    const day = state.days[date];
+    if (!day || day.status === "assumed" || day.status === "skipped") continue;
+    let entry = dayCache.get(day);
+    if (!entry || entry.gen !== gen || entry.date !== date) {
+      entry = { gen, date, list: computeDaySessions(state, date, day) };
+      dayCache.set(day, entry);
+    }
+    for (const [exId, session] of entry.list) {
+      const list = index.get(exId);
+      if (list) list.push(session); else index.set(exId, [session]);
+    }
+  }
+  indexValue = index;
+  indexKey = key;
+  return index;
+}
+
+export function exerciseSessions(state, exId) {
+  return sessionIndex(state).get(exId) || [];
 }
 
 // F.2 — every logged set at target RIR or easier.

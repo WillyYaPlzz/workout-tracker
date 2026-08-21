@@ -3,7 +3,7 @@
 
 import { resolveDay, backfillCandidates, fixWeek } from "./schedule";
 import { swStart, swPause, swEdit } from "./timers";
-import { prefillFor, exerciseConfig, roundTo, DELOAD_PCT } from "./engine";
+import { prefillFor, exerciseConfig, roundTo } from "./engine";
 import { WORKOUTS, getExercise } from "../data/workouts";
 
 const emptySet = () => ({ weight: "", reps: "", rir: null, done: false, doneAt: null });
