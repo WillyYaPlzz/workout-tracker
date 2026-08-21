@@ -3,23 +3,27 @@
 
 import { resolveDay, backfillCandidates, fixWeek } from "./schedule";
 import { swStart, swPause, swEdit } from "./timers";
+import { prefillFor, exerciseConfig, roundTo, DELOAD_PCT } from "./engine";
 import { WORKOUTS, getExercise } from "../data/workouts";
 
 const emptySet = () => ({ weight: "", reps: "", rir: null, done: false, doneAt: null });
 
-export function newDayRecord(workoutKey, exercises) {
+export function newDayRecord(workoutKey, state, date) {
   const exMap = {};
   if (workoutKey !== "REST" && WORKOUTS[workoutKey]) {
     for (const ex of WORKOUTS[workoutKey].exercises) {
-      const sticky = exercises?.[ex.id]?.sticky;
+      const sticky = state?.exercises?.[ex.id]?.sticky;
+      // Pre-fill comes from the engine (F.4): normally the last weight used at
+      // that set position, but a earned load bump pre-fills the new weight with
+      // reps reset to the bottom of the rep range.
+      const pf = i => (state?.days ? prefillFor(state, ex.id, i, { date }) : { weight: sticky?.weights?.[i] ?? "", reps: "" });
       exMap[ex.id] = {
         equipment: sticky?.equipment ?? 0,
         sets: 3,
         substitution: "",
         restOverrideSec: null,
         jumpConfirmedAt: null,
-        // Sticky pre-fill: last weight used at the same set position.
-        work: [0, 1, 2].map(i => ({ ...emptySet(), weight: sticky?.weights?.[i] ?? "" })),
+        work: [0, 1, 2].map(i => ({ ...emptySet(), ...pf(i) })),
         warmups: [],
         notes: "",
       };
@@ -36,7 +40,7 @@ export function newDayRecord(workoutKey, exercises) {
 function withDay(state, date) {
   if (state.days[date]) return state;
   const r = resolveDay(date, state.program, state.weeks, state.settings.weekStart);
-  return { ...state, days: { ...state.days, [date]: newDayRecord(r.workoutKey, state.exercises) } };
+  return { ...state, days: { ...state.days, [date]: newDayRecord(r.workoutKey, state, date) } };
 }
 
 function updateDay(state, date, fn) {
@@ -53,6 +57,14 @@ function rememberSticky(state, exId, dayEx) {
   return { ...state, exercises: { ...state.exercises, [exId]: { ...prev, sticky } } };
 }
 
+// Every engine-relevant decision is stamped on the exercise's timeline, so the
+// history can explain WHY the numbers moved (F.6/F.7 + the jump guard F.5).
+function pushTimeline(state, exId, entry) {
+  const prev = state.exercises[exId] || {};
+  const timeline = [...(prev.timeline || []), entry].slice(-50);
+  return { ...state, exercises: { ...state.exercises, [exId]: { ...prev, timeline } } };
+}
+
 // First logged set of the day starts the session (stamp + stopwatch), once.
 function autoStart(day, now) {
   if (!day.startedAt) {
@@ -66,7 +78,7 @@ function doBackfill(state, program, todayStr, now) {
   const days = { ...state.days };
   for (const d of backfillCandidates(todayStr, program, state.weeks, days, state.settings.weekStart)) {
     const r = resolveDay(d, program, state.weeks, state.settings.weekStart);
-    days[d] = { ...newDayRecord(r.workoutKey, state.exercises), status: "assumed", celebratedAt: now };
+    days[d] = { ...newDayRecord(r.workoutKey, state, d), status: "assumed", celebratedAt: now };
   }
   return { ...state, days };
 }
@@ -225,6 +237,52 @@ export function reducer(state, action) {
         day.stopwatch = { elapsedMs: 0, runningSince: null };
         return day;
       });
+    // F.5 — a big jump is confirmable, never blocked, and always logged.
+    case "CONFIRM_JUMP": {
+      const next = updateDay(state, action.date, day => {
+        const ex = day.exercises[action.exId];
+        if (ex) ex.jumpConfirmedAt = action.now;
+        return day;
+      });
+      return pushTimeline(next, action.exId, { ts: action.now, date: action.date, type: "jump-confirm", detail: { pct: action.pct, weight: action.weight } });
+    }
+
+    // F.6 — the chosen stall action is applied AND recorded, so the timeline
+    // explains why the numbers moved. It also restarts the stall window.
+    case "STALL_ACTION": {
+      const prev = state.exercises[action.exId] || {};
+      const cfg = exerciseConfig(state, action.exId);
+      const patch = { stallActionDate: action.date };
+      if (action.action === "deload") {
+        const w = String(action.payload?.weight ?? roundTo(0, cfg.loadIncrement));
+        patch.sticky = { ...(prev.sticky || {}), weights: (prev.sticky?.weights || [""]).map(() => w), prescribedReps: cfg.repRangeMin };
+      } else if (action.action === "rep-range" && action.payload?.to) {
+        patch.repRangeMin = action.payload.to[0];
+        patch.repRangeMax = action.payload.to[1];
+      }
+      const next = { ...state, exercises: { ...state.exercises, [action.exId]: { ...prev, ...patch } } };
+      return pushTimeline(next, action.exId, { ts: action.now, date: action.date, type: "stall-action", detail: { action: action.action, ...(action.payload || {}) } });
+    }
+
+    // F.7 — changing the progression lever is deliberate and stamped.
+    case "SET_LEVER": {
+      const prev = state.exercises[action.exId] || {};
+      const from = exerciseConfig(state, action.exId).progressionLever;
+      const next = { ...state, exercises: { ...state.exercises, [action.exId]: { ...prev, progressionLever: action.lever } } };
+      return pushTimeline(next, action.exId, { ts: action.now, date: action.date, type: "lever-change", detail: { from, to: action.lever } });
+    }
+
+    case "SET_EX_CONFIG": {
+      const prev = state.exercises[action.exId] || {};
+      return { ...state, exercises: { ...state.exercises, [action.exId]: { ...prev, ...action.patch } } };
+    }
+
+    // F.11 — the weekly fatigue check-in that gates every prompt this week.
+    case "SET_FATIGUE": {
+      const wk = state.weeks[action.week] || {};
+      return { ...state, weeks: { ...state.weeks, [action.week]: { ...wk, fatigue: action.value, fatigueAt: action.now } } };
+    }
+
     case "BUMP_MSG_INDEX":
       return { ...state, meta: { ...state.meta, msgIndex: ((state.meta.msgIndex || 0) + 1) % action.count } };
     default:

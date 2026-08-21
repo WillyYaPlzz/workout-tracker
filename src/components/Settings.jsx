@@ -91,6 +91,21 @@ export default function Settings({ data, dispatch, lang, themeId, th, todayStr }
         </div>
       </div>
 
+      {/* F.10 + F.2 — progression expectations */}
+      <div style={card}>
+        <h3 style={h}>{t(lang, "trainingAgeLabel")}</h3>
+        <div style={{ display: "flex", gap: 6 }}>
+          {["novice", "intermediate", "advanced"].map(v => (
+            <button key={v} onClick={() => dispatch({ type: "SET_SETTING", key: "trainingAge", value: v })} style={{ flex: 1, minHeight: 44, borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: 600, background: data.settings.trainingAge === v ? (th.accent || "#00e5ff") + "20" : "transparent", color: data.settings.trainingAge === v ? (th.accent || "#00e5ff") : th.textMuted, border: `1px solid ${data.settings.trainingAge === v ? (th.accent || "#00e5ff") + "50" : th.borderLight}` }}>{t(lang, v)}</button>
+          ))}
+        </div>
+        <p style={{ fontSize: 11, color: th.textFaint, margin: "8px 0 0", lineHeight: 1.4 }}>{t(lang, "trainingAgeHint")}</p>
+        <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0 0", marginTop: 10, borderTop: `1px solid ${th.border}`, fontSize: 14, color: th.text, cursor: "pointer" }}>
+          {t(lang, "logRirLabel")}
+          <input type="checkbox" checked={data.settings.logRir !== false} onChange={e => dispatch({ type: "SET_SETTING", key: "logRir", value: e.target.checked })} style={{ width: 20, height: 20 }}/>
+        </label>
+      </div>
+
       {/* session & timers */}
       <div style={card}>
         <h3 style={h}>{t(lang, "timersSection")}</h3>

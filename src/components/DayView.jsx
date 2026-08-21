@@ -1,45 +1,31 @@
 import { useEffect, useRef, useState } from "react";
-import { WORKOUTS, WARMUP, COOLDOWN } from "../data/workouts";
+import { WORKOUTS, WARMUP, COOLDOWN, getExercise } from "../data/workouts";
 import { COMPLETION_MESSAGES } from "../data/messages";
-import { t } from "../data/strings";
+import { t, fill } from "../data/strings";
 import { wkColor, isLightTheme } from "../data/themes";
 import { addDays } from "../lib/dates";
 import { resolveDay, firstOpenDay } from "../lib/schedule";
 import { dayStatus, exerciseDone } from "../lib/completion";
 import { restSecFor } from "../lib/reducer";
-import { swElapsed, fmtElapsed, parseElapsed, stepWeight } from "../lib/timers";
+import { swElapsed, fmtElapsed, parseElapsed } from "../lib/timers";
+import { getExerciseAdvice, detectPRs, prefillFor } from "../lib/engine";
 import { useRestTimer, useWakeLock } from "../hooks/useTimers";
-import { Popup, VBtn, SHead } from "./ui";
-import { SessionSummary } from "./Sheets";
+import { Popup, SHead } from "./ui";
+import ExerciseCard from "./ExerciseCard";
+import { SessionSummary, StallMenu, ExerciseHistory, FatigueCheckin, JumpConfirm } from "./Sheets";
 
-const defaultEx = sticky => ({ equipment: sticky?.equipment ?? 0, sets: 3, work: [0, 1, 2].map(i => ({ weight: sticky?.weights?.[i] ?? "", reps: "", rir: null, done: false })), warmups: [], notes: "", substitution: "" });
+// What an untouched exercise shows before its day record exists. It uses the
+// same engine-derived pre-fill the record would be created with, so the card
+// never shows different numbers before and after the first tap.
+const previewEx = (state, exId, date) => ({
+  equipment: state.exercises[exId]?.sticky?.equipment ?? 0, sets: 3,
+  work: [0, 1, 2].map(i => ({ ...prefillFor(state, exId, i, { date }), rir: null, done: false })),
+  warmups: [], notes: "", substitution: "", restOverrideSec: null, jumpConfirmedAt: null,
+});
 
 function fmtNice(dateStr) {
   const [, m, d] = dateStr.split("-");
   return `${Number(d)}/${Number(m)}`;
-}
-
-// One loggable set row: tick + weight (with ± steppers) + reps. WU rows are
-// visually distinct (dashed, muted) and removable.
-function SetRow({ s, label, isWU, color, th, iBg, inc, repsPlaceholder, onTick, onField, onRemove }) {
-  return (
-    <div style={{ display: "flex", gap: 6, alignItems: "center", direction: "ltr", opacity: isWU && !s.done ? 0.85 : 1 }}>
-      <button onClick={onTick} style={{ width: 28, height: 28, borderRadius: 8, border: `2px solid ${s.done ? color : th.borderLight}`, borderStyle: isWU ? "dashed" : "solid", background: s.done ? color : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>
-        {s.done && <span style={{ color: "#fff", fontSize: 13, fontWeight: 700, mixBlendMode: "difference" }}>✓</span>}
-      </button>
-      <span style={{ fontSize: 10, color: isWU ? color : th.textFaint, width: 24, textAlign: "center", flexShrink: 0, fontWeight: isWU ? 700 : 400 }}>{label}</span>
-      <button onClick={() => onField("weight", stepWeight(s.weight, inc, -1))} style={{ width: 30, height: 34, borderRadius: 8, border: `1px solid ${th.borderLight}`, background: iBg, color: th.textMuted, fontSize: 15, cursor: "pointer", flexShrink: 0, padding: 0 }}>−</button>
-      <div style={{ position: "relative", flex: 1.2, minWidth: 62 }}>
-        <input type="number" inputMode="decimal" placeholder="kg" value={s.weight} onChange={e => onField("weight", e.target.value)} style={{ width: "100%", background: iBg, color: th.text, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "7px 24px 7px 8px", fontSize: 14, outline: "none", boxSizing: "border-box", textAlign: "center" }}/>
-        <span style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: th.textFaint, pointerEvents: "none" }}>kg</span>
-      </div>
-      <button onClick={() => onField("weight", stepWeight(s.weight, inc, +1))} style={{ width: 30, height: 34, borderRadius: 8, border: `1px solid ${th.borderLight}`, background: iBg, color: th.textMuted, fontSize: 15, cursor: "pointer", flexShrink: 0, padding: 0 }}>+</button>
-      <div style={{ position: "relative", flex: 1, minWidth: 54 }}>
-        <input type="number" inputMode="numeric" placeholder={repsPlaceholder} value={s.reps} onChange={e => onField("reps", e.target.value)} style={{ width: "100%", background: iBg, color: th.text, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "7px 8px", fontSize: 14, outline: "none", boxSizing: "border-box", textAlign: "center" }}/>
-      </div>
-      {isWU && <button onClick={onRemove} style={{ width: 24, height: 24, border: "none", background: "transparent", color: th.textFaint, fontSize: 13, cursor: "pointer", flexShrink: 0, padding: 0 }}>✕</button>}
-    </div>
-  );
 }
 
 function RestBar({ rest, remaining, color, th, lang, onAdjust, onSkip }) {
@@ -70,6 +56,10 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
   const [popup, setPopup] = useState(null);
   const [pendingSummary, setPendingSummary] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [prs, setPrs] = useState([]);
+  const [historyExId, setHistoryExId] = useState(null);
+  const [stallExId, setStallExId] = useState(null);
+  const [jump, setJump] = useState(null);
   const [showSkip, setShowSkip] = useState(false);
   const [skipReason, setSkipReason] = useState("");
   const [showSwap, setShowSwap] = useState(false);
@@ -93,16 +83,17 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
   const color = wkColor(themeId, workoutKey);
   const isToday = selectedDate === todayStr;
   const dayClosed = status === "done" || status === "skipped" || status === "assumed";
+  const fatigue = data.weeks[slot.week]?.fatigue ?? null;
 
   const statusFn = d => dayStatus(data.days[d], (WORKOUTS[data.days[d]?.workoutKey ?? resolveDay(d, data.program, data.weeks, weekStart).workoutKey]?.exercises || []).map(e => e.id));
   const behindDay = firstOpenDay(todayStr, data.program, data.weeks, statusFn, weekStart);
 
-  const getEx = ex => day?.exercises?.[ex.id] ?? defaultEx(data.exercises[ex.id]?.sticky);
+  const getEx = ex => day?.exercises?.[ex.id] ?? previewEx(data, ex.id, selectedDate);
   const doneCount = wo ? wo.exercises.filter(ex => exerciseDone(getEx(ex))).length : 0;
   const prog = wo ? Math.round((doneCount / wo.exercises.length) * 100) : 0;
   const setsDoneCount = wo ? wo.exercises.reduce((n, ex) => n + getEx(ex).work.filter(s => s.done).length, 0) : 0;
   const warmup = wo ? WARMUP[wo.warmupType] : null;
-  const upd = (exId, field, value) => dispatch({ type: "UPDATE_EX", date: selectedDate, exId, field, value, now: Date.now() });
+  const exName = exId => { const e = getExercise(exId); return e ? L(e.name) : exId; };
 
   // --- session stopwatch (ticking display) + wake lock
   const sw = day?.stopwatch || { elapsedMs: 0, runningSince: null };
@@ -120,15 +111,21 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
 
   function tickSet(exId, kind, si, done) {
     dispatch({ type: "TICK_SET", date: selectedDate, exId, kind, si, done, now: Date.now() });
-    if (done && data.settings.autoRest) restTimer.start(exId, restSecFor(data, exId));
+    if (done && kind === "work" && data.settings.autoRest) restTimer.start(exId, restSecFor(data, exId));
   }
   function adjustRest(delta) {
     const exId = restTimer.rest?.exId;
     restTimer.adjust(delta);
     if (exId) dispatch({ type: "SET_REST", exId, sec: Math.max(15, (restTimer.rest?.totalSec || 0) + delta) });
   }
+  // F.5 — confirmed jumps are logged, then the set is ticked as asked.
+  function confirmJump() {
+    dispatch({ type: "CONFIRM_JUMP", date: selectedDate, exId: jump.exId, pct: jump.pct, weight: jump.weight, now: Date.now() });
+    tickSet(jump.exId, "work", jump.si, true);
+    setJump(null);
+  }
 
-  // --- flow mode: highlight + scroll to the first unfinished exercise while active
+  // --- flow mode
   const firstUnfinishedId = wo && swRunning && !dayClosed ? wo.exercises.find(ex => !exerciseDone(getEx(ex)))?.id : null;
   const prevFirst = useRef(firstUnfinishedId);
   useEffect(() => {
@@ -138,24 +135,24 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
     prevFirst.current = firstUnfinishedId;
   }, [firstUnfinishedId]);
 
-  // --- celebration + summary: fire once per open→done transition (stamp-guarded)
+  // --- celebration + PR detection + summary, once per open->done transition
   useEffect(() => {
     if (status === "done" && day && !day.celebratedAt) {
       const idx = data.meta.msgIndex || 0;
       setPopup(COMPLETION_MESSAGES[idx % COMPLETION_MESSAGES.length]);
+      setPrs(detectPRs(data, selectedDate));
       setPendingSummary(true);
       dispatch({ type: "CELEBRATED", date: selectedDate, now: Date.now() });
       dispatch({ type: "BUMP_MSG_INDEX", count: COMPLETION_MESSAGES.length });
     }
-  }, [status, day, data.meta.msgIndex, dispatch, selectedDate]);
+  }, [status, day, data, dispatch, selectedDate]);
   function closePopup() {
     setPopup(null);
     if (pendingSummary) { setShowSummary(true); setPendingSummary(false); }
   }
 
   function editTime() {
-    const cur = fmtElapsed(swElapsed(sw, Date.now()));
-    const answer = window.prompt(t(lang, "editTimePrompt"), cur);
+    const answer = window.prompt(t(lang, "editTimePrompt"), fmtElapsed(swElapsed(sw, Date.now())));
     if (answer === null) return;
     const ms = parseElapsed(answer);
     if (ms !== null) dispatch({ type: "STOPWATCH", date: selectedDate, op: "edit", value: ms, now: Date.now() });
@@ -169,11 +166,20 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "0 16px", paddingBottom: restTimer.rest ? 90 : 0 }}>
       {popup && <Popup message={popup} onClose={closePopup} lang={lang}/>}
-      {restTimer.flash && <div style={{ position: "fixed", inset: 0, zIndex: 950, background: color, opacity: 0.55, pointerEvents: "none", animation: "none" }}/>}
+      {restTimer.flash && <div style={{ position: "fixed", inset: 0, zIndex: 950, background: color, opacity: 0.55, pointerEvents: "none" }}/>}
+      {jump && <JumpConfirm pct={jump.pct} th={th} lang={lang} color={color} onConfirm={confirmJump} onCancel={() => setJump(null)}/>}
       {showSummary && day && (
         <SessionSummary onClose={() => setShowSummary(false)} th={th} lang={lang} color={color}
-          durationMs={swElapsed(day.stopwatch, Date.now())} setsDone={setsDoneCount}
+          durationMs={swElapsed(day.stopwatch, Date.now())} setsDone={setsDoneCount} prs={prs} exName={exName}
           note={day.note || ""} onNote={v => dispatch({ type: "SET_DAY_NOTE", date: selectedDate, value: v })}/>
+      )}
+      {historyExId && (
+        <ExerciseHistory onClose={() => setHistoryExId(null)} th={th} lang={lang} color={color} state={data}
+          exId={historyExId} exName={exName(historyExId)} timeline={data.exercises[historyExId]?.timeline}/>
+      )}
+      {stallExId && (
+        <StallMenu onClose={() => setStallExId(null)} th={th} lang={lang} color={color} state={data} exId={stallExId}
+          onPick={o => dispatch({ type: "STALL_ACTION", exId: stallExId, action: o.action, payload: o, date: selectedDate, now: Date.now() })}/>
       )}
 
       {/* behind-schedule banner */}
@@ -196,6 +202,7 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
             {chip(`${t(lang, "week")} ${slot.week}`, th.textMuted)}
             {slot.isDeload && chip(t(lang, "deloadWeek"), "#b388ff")}
             {slot.swapped && chip(t(lang, "swapped"), "#ffab40")}
+            {fatigue != null && chip(`${t(lang, "fatigueTitle").split("?")[0]} ${fatigue}/5`, fatigue <= 2 ? "#ffab40" : th.textMuted)}
           </div>
         </div>
         <button onClick={() => setSelectedDate(addDays(selectedDate, 1))} style={navBtn}>{isRtl ? "‹" : "›"}</button>
@@ -238,13 +245,18 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
         </div>
       ) : (
         <>
+          {/* F.11 — weekly recovery check-in, asked once per week */}
+          {fatigue == null && !dayClosed && (
+            <FatigueCheckin week={slot.week} value={fatigue} th={th} lang={lang} color={color}
+              onPick={v => dispatch({ type: "SET_FATIGUE", week: slot.week, value: v, now: Date.now() })}/>
+          )}
+
           {/* workout header card */}
           <div style={{ background: th.card, borderRadius: 12, padding: 16, marginBottom: 12, border: `1px solid ${th.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color }}>{L(wo.name)}</h2>
                 <p style={{ margin: "4px 0 0", fontSize: 13, color: th.textMuted }}>{L(wo.subtitle)}</p>
-                <p style={{ margin: "2px 0 0", fontSize: 12, color: th.textFaint }}>{t(lang, "setsReps")}</p>
                 <div style={{ marginTop: 6 }}>
                   {status === "done" && chip("✓ " + t(lang, "dayDone"), color)}
                   {status === "skipped" && chip(t(lang, "daySkipped"), "#ff5252")}
@@ -260,7 +272,6 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
             <div style={{ marginTop: 12, background: th.border, borderRadius: 4, height: 6, overflow: "hidden" }}>
               <div style={{ width: `${prog}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.3s" }}/>
             </div>
-            {/* session stopwatch */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, direction: "ltr" }}>
               <span style={{ fontSize: 11, color: th.textMuted }}>⏱ {t(lang, "sessionTime")}</span>
               <button onClick={editTime} style={{ background: "transparent", border: "none", color: th.text, fontSize: 18, fontWeight: 700, cursor: "pointer", fontVariantNumeric: "tabular-nums", padding: 0 }}>
@@ -293,65 +304,21 @@ export default function DayView({ data, dispatch, lang, themeId, th, todayStr, s
                 <button onClick={() => dispatch({ type: "TICK_ALL", date: selectedDate, now: Date.now() })} style={{ position: "absolute", top: 8, insetInlineEnd: 40, background: color + "15", color, border: `1px solid ${color}30`, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{t(lang, "tickAll")}</button>
               )}
             </div>
-            {openSec.workout && wo.exercises.map((ex, i) => {
-              const dEx = getEx(ex), opts = L(ex.options), cl = ex.links[dEx.equipment] || ex.links[0];
-              const done = exerciseDone(dEx);
-              const isCurrent = ex.id === firstUnfinishedId;
-              const isOpen = expandedEx[ex.id] ?? false;
-              const repsPh = `${ex.repRangeMin}-${ex.repRangeMax}`;
-              return (
-                <div key={ex.id} ref={el => { exRefs.current[ex.id] = el; }} style={{ background: done ? th.card + "80" : th.card, borderRadius: 12, marginBottom: 8, border: isCurrent ? `2px solid ${color}` : done ? `1px solid ${color}30` : `1px solid ${th.border}`, opacity: done ? 0.7 : 1, overflow: "hidden", boxShadow: isCurrent ? `0 0 0 3px ${color}20` : "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 14, cursor: "pointer" }} onClick={() => setExpandedEx(p => ({ ...p, [ex.id]: !isOpen }))}>
-                    <button onClick={e => { e.stopPropagation(); upd(ex.id, "bulkTick", !done); }} style={{ width: 28, height: 28, borderRadius: 8, border: `2px solid ${done ? color : th.borderLight}`, background: done ? color : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {done && <span style={{ color: isLight ? "#fff" : th.bg, fontSize: 14, fontWeight: 700 }}>✓</span>}
-                    </button>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: done ? th.textMuted : th.text, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <span style={{ color: th.textFaint, fontSize: 12 }}>{i + 1}.</span>
-                        <span>{L(ex.name)}</span>
-                        <VBtn link={cl} lang={lang} color={color}/>
-                      </div>
-                      {!isOpen && (dEx.work.some(s => s.done || s.weight) ? (
-                        <div style={{ fontSize: 11, color: th.textFaint, marginTop: 3 }}>
-                          {dEx.work.filter(s => s.weight || s.done).map(s => `${s.done ? "✓" : ""}${s.weight || "?"}kg×${s.reps || repsPh}`).join(" · ")}
-                        </div>
-                      ) : null)}
-                      {isOpen && <div style={{ fontSize: 11, color: th.textFaint, marginTop: 2 }}>{L(ex.target)}</div>}
-                    </div>
-                    <span style={{ color: th.textMuted, fontSize: 11, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }}>▼</span>
-                  </div>
-                  {isOpen && (
-                    <div style={{ padding: "0 14px 14px" }}>
-                      <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                        <select value={dEx.equipment} onChange={e => upd(ex.id, "equipment", e.target.value)} style={{ flex: 1, minWidth: 120, background: iBg, color: th.text, border: `1px solid ${th.borderLight}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", direction: "ltr" }}>
-                          {opts.map((o, oi) => <option key={oi} value={oi}>{o}</option>)}
-                        </select>
-                        <div style={{ display: "flex", background: iBg, borderRadius: 8, border: `1px solid ${th.borderLight}`, overflow: "hidden" }}>
-                          {[2, 3, 4].map(n => (
-                            <button key={n} onClick={() => upd(ex.id, "sets", n)} style={{ width: 36, height: 34, border: "none", background: dEx.sets === n ? color + "30" : "transparent", color: dEx.sets === n ? color : th.textMuted, fontSize: 13, fontWeight: 600, cursor: "pointer", borderRight: n < 4 ? `1px solid ${th.borderLight}` : "none" }}>{n}s</button>
-                          ))}
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {dEx.warmups.map((s, si) => (
-                          <SetRow key={`wu${si}`} s={s} label={t(lang, "wu")} isWU color={color} th={th} iBg={iBg} inc={ex.loadIncrement} repsPlaceholder=""
-                            onTick={() => tickSet(ex.id, "wu", si, !s.done)}
-                            onField={(prop, v) => upd(ex.id, `wu-${si}-${prop}`, v)}
-                            onRemove={() => dispatch({ type: "REMOVE_WU", date: selectedDate, exId: ex.id, si })}/>
-                        ))}
-                        {dEx.work.map((s, si) => (
-                          <SetRow key={si} s={s} label={`S${si + 1}`} color={color} th={th} iBg={iBg} inc={ex.loadIncrement} repsPlaceholder={repsPh}
-                            onTick={() => tickSet(ex.id, "work", si, !s.done)}
-                            onField={(prop, v) => upd(ex.id, `set-${si}-${prop}`, v)}/>
-                        ))}
-                      </div>
-                      <button onClick={() => dispatch({ type: "ADD_WU", date: selectedDate, exId: ex.id })} style={{ marginTop: 8, background: "transparent", color: th.textMuted, border: `1px dashed ${th.borderLight}`, borderRadius: 8, padding: "6px 12px", fontSize: 11, cursor: "pointer" }}>{t(lang, "addWarmupSet")}</button>
-                      <input type="text" placeholder={t(lang, "notes")} value={dEx.notes} onChange={e => upd(ex.id, "notes", e.target.value)} style={{ width: "100%", background: iBg, color: th.text, border: `1px solid ${th.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 12, outline: "none", marginTop: 8, boxSizing: "border-box" }}/>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {openSec.workout && wo.exercises.map((ex, i) => (
+              <ExerciseCard key={ex.id} ex={ex} dEx={getEx(ex)} index={i}
+                advice={getExerciseAdvice(data, ex.id, { date: selectedDate })}
+                state={data} date={selectedDate} color={color} th={th} lang={lang} isLight={isLight} iBg={iBg}
+                isOpen={expandedEx[ex.id] ?? false}
+                isCurrent={ex.id === firstUnfinishedId}
+                done={exerciseDone(getEx(ex))}
+                cardRef={el => { exRefs.current[ex.id] = el; }}
+                dispatch={dispatch}
+                onToggle={() => setExpandedEx(p => ({ ...p, [ex.id]: !(p[ex.id] ?? false) }))}
+                onTickSet={tickSet}
+                onOpenHistory={setHistoryExId}
+                onOpenStall={setStallExId}
+                onJump={setJump}/>
+            ))}
           </div>
 
           {/* cool down checklist */}

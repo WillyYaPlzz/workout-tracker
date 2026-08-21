@@ -137,3 +137,91 @@ describe("warm-up rows", () => {
     expect(s.days[D].exercises["lb2-1"].warmups).toHaveLength(4);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3: engine-driven actions
+// ---------------------------------------------------------------------------
+import { getExerciseAdvice, stallOptions } from "./engine";
+
+function logClean(state, date, exId, weight, reps, rir, count = 3) {
+  let s = state;
+  for (let i = 0; i < count; i++) {
+    s = reducer(s, { type: "UPDATE_EX", date, exId, field: `set-${i}-weight`, value: String(weight) });
+    s = reducer(s, { type: "UPDATE_EX", date, exId, field: `set-${i}-reps`, value: String(reps) });
+    s = reducer(s, { type: "UPDATE_EX", date, exId, field: `set-${i}-rir`, value: rir });
+    s = reducer(s, { type: "TICK_SET", date, exId, kind: "work", si: i, done: true, now: 1000 + i });
+  }
+  return s;
+}
+
+describe("engine-derived pre-fill in new day records (F.4)", () => {
+  it("a new day pre-fills the bumped weight and bottom-of-range reps after a clean top-range session", () => {
+    let s = base();
+    s = reducer(s, { type: "SET_EX_CONFIG", exId: "lb2-1", patch: { repRangeMin: 6, repRangeMax: 10, loadIncrement: 2.5 } });
+    s = logClean(s, "2026-08-21", "lb2-1", 60, 10, 2);
+    expect(getExerciseAdvice(s, "lb2-1", { date: "2026-08-28" }).prompt).toMatchObject({ type: "add-load", kg: 2.5 });
+    // touching next Friday creates its record with the bumped pre-fill
+    const next = reducer(s, { type: "UPDATE_EX", date: "2026-08-28", exId: "lb2-1", field: "notes", value: "" });
+    const work = next.days["2026-08-28"].exercises["lb2-1"].work;
+    expect(work.map(w => w.weight)).toEqual(["62.5", "62.5", "62.5"]);
+    expect(work.map(w => w.reps)).toEqual(["6", "6", "6"]);
+  });
+  it("without an earned bump the pre-fill just repeats the last weights", () => {
+    let s = base();
+    s = reducer(s, { type: "SET_EX_CONFIG", exId: "lb2-1", patch: { repRangeMin: 6, repRangeMax: 10 } });
+    s = logClean(s, "2026-08-21", "lb2-1", 60, 8, 2);   // mid-range: "add a rep"
+    const next = reducer(s, { type: "UPDATE_EX", date: "2026-08-28", exId: "lb2-1", field: "notes", value: "" });
+    const work = next.days["2026-08-28"].exercises["lb2-1"].work;
+    expect(work.map(w => w.weight)).toEqual(["60", "60", "60"]);
+    expect(work.map(w => w.reps)).toEqual(["", "", ""]);
+  });
+});
+
+describe("stall actions (F.6)", () => {
+  it("the deload option drops the sticky weights ~10% and restarts the stall window", () => {
+    let s = base();
+    for (const d of ["2026-08-07", "2026-08-14", "2026-08-21"]) s = logClean(s, d, "lb2-1", 60, 8, 2);
+    expect(getExerciseAdvice(s, "lb2-1", { date: "2026-08-28" }).stalled).toBe(true);
+    const deload = stallOptions(s, "lb2-1")[0];
+    s = reducer(s, { type: "STALL_ACTION", exId: "lb2-1", action: "deload", payload: deload, date: "2026-08-28", now: 5000 });
+    expect(s.exercises["lb2-1"].sticky.weights).toEqual(["55", "55", "55"]);
+    expect(s.exercises["lb2-1"].stallActionDate).toBe("2026-08-28");
+    // the stall flag clears because the window restarted
+    expect(getExerciseAdvice(s, "lb2-1", { date: "2026-08-29" }).stalled).toBe(false);
+    // and the reason is on the timeline
+    expect(s.exercises["lb2-1"].timeline.at(-1)).toMatchObject({ type: "stall-action", detail: { action: "deload" } });
+  });
+  it("the rep-range option shifts the range and is recorded", () => {
+    let s = base();
+    s = reducer(s, { type: "SET_EX_CONFIG", exId: "lb2-1", patch: { repRangeMin: 8, repRangeMax: 12 } });
+    s = reducer(s, { type: "STALL_ACTION", exId: "lb2-1", action: "rep-range", payload: { to: [10, 14] }, date: "2026-08-28", now: 5000 });
+    expect(s.exercises["lb2-1"]).toMatchObject({ repRangeMin: 10, repRangeMax: 14 });
+    expect(s.exercises["lb2-1"].timeline.at(-1).detail.action).toBe("rep-range");
+  });
+});
+
+describe("lever changes and the jump guard", () => {
+  it("changing the lever stamps from -> to on the timeline (F.7)", () => {
+    let s = reducer(base(), { type: "SET_LEVER", exId: "lb2-1", lever: "load", date: "2026-08-21", now: 7000 });
+    expect(s.exercises["lb2-1"].progressionLever).toBe("load");
+    expect(s.exercises["lb2-1"].timeline.at(-1)).toMatchObject({ type: "lever-change", detail: { from: "double", to: "load" } });
+  });
+  it("a confirmed jump is stamped on the day and the timeline (F.5)", () => {
+    let s = reducer(base(), { type: "CONFIRM_JUMP", date: "2026-08-21", exId: "lb2-1", pct: 17, weight: "70", now: 8000 });
+    expect(s.days["2026-08-21"].exercises["lb2-1"].jumpConfirmedAt).toBe(8000);
+    expect(s.exercises["lb2-1"].timeline.at(-1)).toMatchObject({ type: "jump-confirm", detail: { pct: 17 } });
+  });
+});
+
+describe("weekly fatigue check-in (F.11)", () => {
+  it("stores the score for the week and gates that week's prompts", () => {
+    let s = base();
+    s = logClean(s, "2026-08-14", "lb2-1", 60, 12, 2);   // clean top-range session, week 2
+    expect(getExerciseAdvice(s, "lb2-1", { date: "2026-08-21" }).prompt).toBeTruthy();
+    s = reducer(s, { type: "SET_FATIGUE", week: 3, value: 2, now: 9000 });
+    expect(s.weeks[3]).toMatchObject({ fatigue: 2 });
+    const advice = getExerciseAdvice(s, "lb2-1", { date: "2026-08-21" });
+    expect(advice.prompt).toBe(null);
+    expect(advice.suppressed.reason).toBe("fatigue");
+  });
+});
